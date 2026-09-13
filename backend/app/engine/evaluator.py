@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import ast
 from collections.abc import Callable, Iterable, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import date
 from decimal import Decimal
 
@@ -436,7 +436,7 @@ def _reported_statements(dataset: FinancialDataset, catalog: Catalog) -> set[tup
         item = catalog.items.get(fact.key)
         if item is None or fact.period is None:
             continue
-        period = Period.parse(fact.period)
+        period = dataset.period(fact.period)
         reported.add((item.statement, period.end_date if item.nature is Nature.STOCK else period.label))
     return reported
 
@@ -444,7 +444,7 @@ def _reported_statements(dataset: FinancialDataset, catalog: Catalog) -> set[tup
 def preceding_period(period: Period) -> Period:
     """A period ending the day before ``period`` starts, used to find opening balances."""
     if period.kind is PeriodKind.NINE_MONTHS:
-        return Period(PeriodKind.YEAR, period.fiscal_year - 1)
+        return replace(period, kind=PeriodKind.YEAR, fiscal_year=period.fiscal_year - 1, part=None)
     return period.previous_sequential()
 
 

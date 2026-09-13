@@ -14,7 +14,7 @@ from functools import cached_property
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.domain.enums import Basis, DocType, Sector
-from app.domain.periods import Period
+from app.domain.periods import INDIAN_FISCAL_YEAR_END, Period
 
 
 class ExtractionMethod(StrEnum):
@@ -92,6 +92,7 @@ class DocumentInfo(BaseModel):
     filing_date: date | None = None
     source_url: str | None = None
     restated: bool = False  # offer documents present restated financial information
+    fiscal_year_end_month: int = Field(INDIAN_FISCAL_YEAR_END, ge=1, le=12)
 
 
 class FinancialDataset(BaseModel):
@@ -117,7 +118,11 @@ class FinancialDataset(BaseModel):
     def periods(self) -> list[Period]:
         """All reporting periods present, oldest first."""
         labels = {fact.period for fact in self.facts if fact.period}
-        return sorted((Period.parse(label) for label in labels), key=lambda p: p.sort_key)
+        return sorted((self.period(label) for label in labels), key=lambda p: p.sort_key)
+
+    def period(self, label: str) -> Period:
+        """Interpret a period label in this document's fiscal calendar."""
+        return Period.parse(label, self.document.fiscal_year_end_month)
 
     def get(self, key: str, period: Period | str | None = None) -> Fact | None:
         label = period.label if isinstance(period, Period) else period
