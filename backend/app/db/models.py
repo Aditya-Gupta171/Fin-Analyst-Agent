@@ -80,6 +80,7 @@ class FindingRow(Base):
     severity: Mapped[str]
     origin: Mapped[str]
     rule_ids: Mapped[list] = mapped_column(JSON, default=list)
+    chunk_ids: Mapped[list] = mapped_column(JSON, default=list)  # knowledge chunks cited as evidence
     status: Mapped[str] = mapped_column(default="open")  # open | confirmed | dismissed
 
 
@@ -121,6 +122,7 @@ class RuleVersion(Base):
     rule_id: Mapped[str]
     definition_json: Mapped[dict] = mapped_column(JSON)
     status: Mapped[str] = mapped_column(default="candidate")  # candidate | approved | rejected
+    backtest_result: Mapped[dict | None] = mapped_column(JSON, default=None)
     source_analysis_id: Mapped[str] = mapped_column(ForeignKey("analyses.id"))
     decided_by: Mapped[str | None] = mapped_column(default=None)
     decided_at: Mapped[datetime | None] = mapped_column(_TIMESTAMP, default=None)

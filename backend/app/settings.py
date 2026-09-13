@@ -8,7 +8,7 @@ from pathlib import Path
 from pydantic import SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-from app.paths import REPO_ROOT
+from app.paths import REPO_ROOT, RULES_DIR
 
 
 class Settings(BaseSettings):
@@ -31,6 +31,9 @@ class Settings(BaseSettings):
     cors_origins: list[str] = ["*"]
     api_key: SecretStr | None = None  # when set, POST/DELETE endpoints require `Authorization: Bearer <key>`
     max_concurrent_analyses: int = 2
+    # Where an approved candidate rule is written (app/engine/promotion.py). A parameter, not a bare
+    # import of RULES_DIR, purely so tests can redirect it at a throwaway copy of the rules tree.
+    rules_dir: Path = RULES_DIR
 
     @field_validator("database_url")
     @classmethod

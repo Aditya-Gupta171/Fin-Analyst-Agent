@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import uuid
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from datetime import UTC, datetime
 
 from app.agent.graph import AgentContext, AgentState, accepted, rule_problems, run_agent
@@ -46,11 +46,21 @@ def analyze(
     gateway: Gateway | None = None,
     baselines: BaselineProvider | None = None,
     on_progress: ProgressCallback | None = None,
+    reliability: Mapping[str, float] | None = None,
+    knowledge_boosts: Mapping[str, float] | None = None,
 ) -> AnalysisReport:
     if on_progress:
         on_progress("engine", "Computing metrics and evaluating rules")
     result = run_engine(dataset, catalog, baselines=baselines)
-    return build_report(result, catalog, kb=kb, gateway=gateway, on_progress=on_progress)
+    return build_report(
+        result,
+        catalog,
+        kb=kb,
+        gateway=gateway,
+        on_progress=on_progress,
+        reliability=reliability,
+        knowledge_boosts=knowledge_boosts,
+    )
 
 
 def build_report(
@@ -60,13 +70,24 @@ def build_report(
     kb: KnowledgeBase | None,
     gateway: Gateway | None,
     on_progress: ProgressCallback | None = None,
+    reliability: Mapping[str, float] | None = None,
+    knowledge_boosts: Mapping[str, float] | None = None,
 ) -> AnalysisReport:
     index = EvidenceIndex(result, catalog)
     rule_results = {rule.rule_id: rule for rule in result.fired_rules}
     notes: list[str] = []
     state: AgentState = {}
     if gateway is not None:
-        state = run_agent(AgentContext(result, catalog, index, kb, gateway, on_progress=on_progress))
+        context = AgentContext(
+            result,
+            catalog,
+            index,
+            kb,
+            gateway,
+            on_progress=on_progress,
+            knowledge_boosts=knowledge_boosts or {},
+        )
+        state = run_agent(context)
         notes = state.get("notes", [])
 
     findings = _agent_findings(state, result, index, kb)
@@ -78,7 +99,7 @@ def build_report(
         if rule_id not in covered
     ]
     findings += [
-        rule_finding(rule, index, kb)
+        rule_finding(rule, index, kb, reliability)
         for rule_id, rule in rule_results.items()
         if rule_id not in covered and rule_id not in dismissed_reasons
     ]

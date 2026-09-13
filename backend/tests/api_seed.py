@@ -12,7 +12,7 @@ import asyncio
 from datetime import UTC, datetime
 
 from app.db.engine import create_all, make_engine, make_session_factory
-from app.db.models import Analysis, Document, RuleVersion
+from app.db.models import Analysis, Document, Feedback, FindingRow, RuleVersion
 from app.domain.financials import FinancialDataset
 
 
@@ -82,5 +82,55 @@ def seed_rule_candidate(
             candidate_id = row.id
         await engine.dispose()
         return candidate_id
+
+    return asyncio.run(_seed())
+
+
+def seed_finding(
+    database_url: str,
+    analysis_id: str,
+    finding_id: str,
+    *,
+    rule_ids: list[str] = (),
+    chunk_ids: list[str] = (),
+    **overrides,
+) -> str:
+    async def _seed() -> str:
+        engine = make_engine(database_url)
+        await create_all(engine)
+        async with make_session_factory(engine)() as session:
+            row = FindingRow(
+                analysis_id=analysis_id,
+                finding_id=finding_id,
+                title=overrides.pop("title", "Seeded finding"),
+                category=overrides.pop("category", "test"),
+                severity=overrides.pop("severity", "medium"),
+                origin=overrides.pop("origin", "rule"),
+                rule_ids=list(rule_ids),
+                chunk_ids=list(chunk_ids),
+                **overrides,
+            )
+            session.add(row)
+            await session.commit()
+            row_id = row.id
+        await engine.dispose()
+        return row_id
+
+    return asyncio.run(_seed())
+
+
+def seed_feedback(
+    database_url: str, analysis_id: str, finding_id: str, verdict: str, *, reason: str | None = None
+) -> str:
+    async def _seed() -> str:
+        engine = make_engine(database_url)
+        await create_all(engine)
+        async with make_session_factory(engine)() as session:
+            row = Feedback(analysis_id=analysis_id, finding_id=finding_id, verdict=verdict, reason=reason)
+            session.add(row)
+            await session.commit()
+            row_id = row.id
+        await engine.dispose()
+        return row_id
 
     return asyncio.run(_seed())

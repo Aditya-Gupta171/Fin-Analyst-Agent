@@ -17,7 +17,9 @@ from sqlalchemy.ext.asyncio import async_sessionmaker
 from app.analysis.report import AnalysisReport
 from app.analysis.service import build_report
 from app.db.baselines import load_baselines, record_baselines
+from app.db.chunk_utility import chunk_boosts
 from app.db.models import Analysis, Document, FindingRow, RuleVersion
+from app.db.reliability import rule_reliabilities, scores
 from app.domain.financials import FinancialDataset
 from app.engine.baselines import BaselineProvider
 from app.engine.catalog import Catalog
@@ -33,6 +35,8 @@ def _run_sync(
     kb: KnowledgeBase | None,
     gateway: Gateway | None,
     baselines: BaselineProvider,
+    reliability: dict[str, float],
+    knowledge_boosts: dict[str, float],
     progress: ProgressStore,
     analysis_id: str,
 ) -> tuple[EngineResult, AnalysisReport]:
@@ -41,7 +45,15 @@ def _run_sync(
 
     on_progress("engine", "Computing metrics and evaluating rules")
     result = run_engine(dataset, catalog, baselines=baselines)
-    report = build_report(result, catalog, kb=kb, gateway=gateway, on_progress=on_progress)
+    report = build_report(
+        result,
+        catalog,
+        kb=kb,
+        gateway=gateway,
+        on_progress=on_progress,
+        reliability=reliability,
+        knowledge_boosts=knowledge_boosts,
+    )
     return result, report
 
 
@@ -62,13 +74,15 @@ async def run_analysis(
             return
         dataset = FinancialDataset.model_validate(document.dataset_json)
         baselines = await load_baselines(session, dataset.company.sector)
+        reliability = scores(await rule_reliabilities(session))
+        boosts = await chunk_boosts(session)
         analysis.status = "running"
         analysis.started_at = datetime.now(UTC)
         await session.commit()
 
     try:
         result, report = await asyncio.to_thread(
-            _run_sync, dataset, catalog, kb, gateway, baselines, progress, analysis_id
+            _run_sync, dataset, catalog, kb, gateway, baselines, reliability, boosts, progress, analysis_id
         )
     except Exception as exc:
         async with session_factory() as session:
@@ -101,6 +115,7 @@ async def run_analysis(
                 severity=finding.severity.value,
                 origin=finding.origin,
                 rule_ids=finding.rule_ids,
+                chunk_ids=[k.chunk_id for k in finding.knowledge],
             )
             for finding in report.findings
         )

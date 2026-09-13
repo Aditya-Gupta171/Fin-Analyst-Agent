@@ -6,8 +6,8 @@ into a prompt within the token budget and anything the model repeats from it can
 
 from __future__ import annotations
 
-from collections.abc import Iterable
-from dataclasses import dataclass
+from collections.abc import Iterable, Mapping
+from dataclasses import dataclass, field
 from datetime import date
 
 from app.agent.schemas import ContextRequest
@@ -29,6 +29,7 @@ class Toolbox:
     catalog: Catalog
     index: EvidenceIndex
     kb: KnowledgeBase | None
+    boosts: Mapping[str, float] = field(default_factory=dict)
 
     def run(self, request: ContextRequest) -> str:
         argument = request.argument.strip()
@@ -70,7 +71,7 @@ class Toolbox:
         filters = SearchFilters(
             doc_type=self.result.document.doc_type, sector=self.result.company.sector, kinds=kinds
         )
-        hits = self.kb.search(query, filters, k=3)
+        hits = self.kb.search(query, filters, k=3, boosts=self.boosts)
         return f"knowledge_search({query}):\n" + pack_context(hits, max_tokens=700) if hits else "no matches"
 
     def knowledge_sections(self, doc_ids: Iterable[str], kinds: tuple[SectionKind, ...]) -> str:

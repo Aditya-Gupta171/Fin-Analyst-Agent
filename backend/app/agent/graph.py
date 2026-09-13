@@ -11,7 +11,7 @@ deterministic result if the model call fails, so an analysis always completes.
 from __future__ import annotations
 
 from collections import defaultdict
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from typing import TypedDict
 
@@ -75,10 +75,11 @@ class AgentContext:
     kb: KnowledgeBase | None
     gateway: Gateway
     on_progress: Callable[[str, str], None] | None = None
+    knowledge_boosts: Mapping[str, float] = field(default_factory=dict)
     allowed_figures: set[str] = field(default_factory=set)
 
     def __post_init__(self) -> None:
-        self.toolbox = Toolbox(self.result, self.catalog, self.index, self.kb)
+        self.toolbox = Toolbox(self.result, self.catalog, self.index, self.kb, boosts=self.knowledge_boosts)
         self.fact_sheet = build_fact_sheet(self.result)
         self.allowed_figures |= figures_in(rule.rationale for rule in self.result.rules)
         self.chunk_ids = {chunk.id for chunk in self.kb.chunks} if self.kb else set()

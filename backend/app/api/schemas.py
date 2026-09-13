@@ -88,6 +88,7 @@ class RuleCandidateOut(BaseModel):
     created_at: datetime
     decided_by: str | None
     decided_at: datetime | None
+    backtest_result: dict | None = None
 
 
 class RuleDecisionIn(BaseModel):

@@ -7,6 +7,7 @@ provider is unavailable — and they are the ground truth the agent's findings a
 from __future__ import annotations
 
 from collections import defaultdict
+from collections.abc import Mapping
 
 from app.analysis.evidence import EvidenceIndex
 from app.analysis.report import (
@@ -28,7 +29,12 @@ from app.knowledge.documents import SectionKind
 RULE_CONFIDENCE = 0.6  # a threshold was crossed; no judgement has been applied yet
 
 
-def rule_finding(rule: RuleResult, index: EvidenceIndex, kb: KnowledgeBase | None) -> Finding:
+def rule_finding(
+    rule: RuleResult,
+    index: EvidenceIndex,
+    kb: KnowledgeBase | None,
+    reliability: Mapping[str, float] | None = None,
+) -> Finding:
     evidence = [e for e in rule.latest.evidence if e.value is not None and e.ref in index]
     cited = "; ".join(f"{e.label} {{{{{e.ref}}}}}" for e in evidence)
     summary = f"{rule.title} ({rule.latest.period})" + (f": {cited}." if cited else ".")
@@ -50,7 +56,7 @@ def rule_finding(rule: RuleResult, index: EvidenceIndex, kb: KnowledgeBase | Non
         title=rule.title,
         category=rule.category,
         severity=rule.severity,
-        confidence=RULE_CONFIDENCE,
+        confidence=(reliability or {}).get(rule.rule_id, RULE_CONFIDENCE),
         summary=index.render(summary),
         analysis=index.render(analysis),
         summary_template=summary,
@@ -63,8 +69,13 @@ def rule_finding(rule: RuleResult, index: EvidenceIndex, kb: KnowledgeBase | Non
     )
 
 
-def rule_findings(result: EngineResult, index: EvidenceIndex, kb: KnowledgeBase | None) -> list[Finding]:
-    return [rule_finding(rule, index, kb) for rule in result.fired_rules]
+def rule_findings(
+    result: EngineResult,
+    index: EvidenceIndex,
+    kb: KnowledgeBase | None,
+    reliability: Mapping[str, float] | None = None,
+) -> list[Finding]:
+    return [rule_finding(rule, index, kb, reliability) for rule in result.fired_rules]
 
 
 def scorecard(result: EngineResult) -> list[AreaScore]:

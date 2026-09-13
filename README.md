@@ -153,8 +153,19 @@ Thresholds can reference the company's peer cohort (sector × size band) instead
 `dso > cohort_pct(dso, 90, 120)`. As filings are analysed, cohort baselines fill in and the same rule adapts:
 98 days of receivables is flagged among fast-collecting manufacturers but not among slow-collecting ones
 ([`test_cohort_learning.py`](backend/tests/test_cohort_learning.py)). Until a cohort has enough observations, the
-static fallback is used and the engine says so. Analyst feedback, precedent memory and agent-proposed rules build
-on this (see page 3 of the architecture diagram).
+static fallback is used and the engine says so. Cohort baselines persist across filings from step 5 onward
+(`app/db/baselines.py`); step 6 adds three more feedback-driven loops, all backed by the `feedback` table an
+analyst's confirm/dismiss verdicts land in:
+
+- **Rule reliability** (`app/db/reliability.py`) — a Beta-calibrated confidence per rule, starting at the
+  static 0.6 and shifting as verdicts accumulate (`GET /rules/reliability`).
+- **Knowledge-chunk utility** (`app/db/chunk_utility.py`) — chunks that supported a confirmed finding get
+  boosted in future retrieval, dismissed ones demoted; this is the "learned utility boost hook"
+  `HybridRetriever.search()` has carried since step 2.
+- **Rule backtesting and promotion** (`app/db/backtest.py`, `app/engine/promotion.py`) — a candidate the
+  agent's rule-proposer emits can be backtested against every stored filing
+  (`POST /rules/candidates/{id}/backtest`) before a human approves it; approving writes it into
+  `rules/packs/learned/proposed.yaml` for review and commit, active on the next restart.
 
 ## What the engine does today
 
@@ -278,12 +289,19 @@ startup) — nothing else to set up. Endpoints:
 | `GET /analyses/{id}/events` | Server-sent events with live progress (stage/message) until it finishes. |
 | `GET /analyses/{id}/findings` | The report's findings, normalized for listing/filtering. |
 | `POST /analyses/{id}/findings/{finding_id}/feedback` | Record an analyst's confirm/dismiss verdict. |
-| `GET /rules/candidates`, `POST /rules/candidates/{id}/decision` | Review and approve/reject agent-proposed rules. |
+| `GET /rules/candidates` | List agent-proposed candidate rules, optionally filtered by status. |
+| `POST /rules/candidates/{id}/backtest` | Run a candidate against every stored filing and persist the result. |
+| `POST /rules/candidates/{id}/decision` | Approve (promotes it into `rules/packs/learned/`) or reject. |
+| `GET /rules/reliability` | Feedback-calibrated confidence per rule that has at least one verdict. |
 | `GET /health` | Catalog/knowledge-base/DB readiness. |
 
 A background analysis job runs off the request thread (`app/jobs/`); a process restart marks any job still
 `queued`/`running` as failed rather than leaving it stuck (there's no durable queue — a single container and
 Groq's own free-tier rate limit make one unnecessary for now).
+
+Approving a candidate rule writes it to `rules/packs/learned/proposed.yaml` — an ordinary, uncommitted file
+like every other rule pack, for review before committing — but the *running* app only loads the catalog
+once at startup, so it takes a restart to actually start firing.
 
 ### Using Supabase Postgres instead of SQLite
 
@@ -326,6 +344,7 @@ connection under a different client statement cache.
 5. ~~Persistence, job queue and REST API~~ (documents/analyses/findings/feedback/cohort baselines/rule
    versions in SQLAlchemy + Alembic; an in-process job queue for analysis runs; FastAPI endpoints to upload,
    trigger, poll/stream and give feedback on a report)
-6. Learning service: cohort baselines, feedback, rule backtesting
+6. ~~Learning service~~ (rule reliability calibrated from feedback, knowledge-chunk utility boosts feeding
+   the agent's own retrieval, candidate-rule backtesting and promotion into a version-controlled rule pack)
 7. Web app: library, upload, report with evidence viewer, reasoning trace, learning console
 8. Sample corpus of public Indian filings, evaluation set, deployment
