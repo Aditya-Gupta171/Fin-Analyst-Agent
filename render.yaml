@@ -1,0 +1,18 @@
+# Render Blueprint (https://render.com/docs/blueprint-spec) — lets "New + → Blueprint" in Render's
+# dashboard pick this up automatically instead of configuring a Web Service by hand. Best-effort: if the
+# Blueprint flow doesn't pick this up cleanly, the README's "Deploying" section has the manual steps
+# (same Dockerfile, same env vars) as a fallback.
+services:
+  - type: web
+    name: fin-analyst-agent-backend
+    env: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    plan: free
+    envVars:
+      - key: GROQ_API_KEY
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: CORS_ORIGINS
+        sync: false

@@ -80,11 +80,13 @@ def build_app(
 
 def _load_knowledge_base(catalog: Catalog) -> KnowledgeBase | None:
     try:
+        import fastembed  # noqa: F401  # presence check only: FastEmbedEmbedder/-Reranker import it lazily
+    except ImportError:
+        embedder, reranker = None, None
+    else:
         from app.knowledge.embeddings import FastEmbedEmbedder, FastEmbedReranker
 
         embedder, reranker = FastEmbedEmbedder(), FastEmbedReranker()
-    except ImportError:
-        embedder, reranker = None, None
     return KnowledgeBase.load(KNOWLEDGE_DIR, catalog, embedder=embedder, reranker=reranker)
 
 

@@ -1,13 +1,3 @@
----
-title: Financial Analyst Agent
-emoji: 📊
-colorFrom: blue
-colorTo: indigo
-sdk: docker
-app_port: 8000
-pinned: false
----
-
 # Self-Learning AI Financial Analyst Agent
 
 An AI analyst for Indian market filings: SEBI DRHP / RHP offer documents, Regulation 33 quarterly results and
@@ -17,11 +7,7 @@ as a module that a larger fintech platform can call.
 
 > **Status:** feature-complete through the full roadmap — engine, knowledge base, ingestion, the live agent,
 > persistence/API, the learning service, and this web app. Live demo links go here once deployed:
-> **Backend:** `<Hugging Face Space URL>` · **Frontend:** `<Vercel URL>`.
-
-The YAML block above this line is [Hugging Face Spaces](https://huggingface.co/spaces) metadata — if you're
-reading this on GitHub, ignore it; it just makes this same `README.md` double as the Space's description
-when the backend is deployed there (see [Deploying](#deploying)).
+> **Backend:** `<Render URL>` · **Frontend:** `<Vercel URL>`.
 
 ## Core principle: the LLM never produces a number
 
@@ -263,7 +249,8 @@ rules/             knowledge base layer B
 frontend/          Next.js web app — library, analysis report, evidence viewer, learning console
 docs/
   architecture.drawio
-Dockerfile           backend image for Hugging Face Spaces (build context is the repo root, see Deploying)
+Dockerfile           backend image for Render (build context is the repo root, see Deploying)
+render.yaml          optional Render Blueprint (same setup, pre-filled)
 ```
 
 ## Running locally
@@ -356,40 +343,48 @@ hand-maintained duplicates.
 
 ## Deploying
 
-**Backend → Hugging Face Spaces (Docker).** The repo-root `Dockerfile` and `.dockerignore` build the backend
-image; the YAML frontmatter at the very top of this README is Spaces metadata (`sdk: docker`, `app_port: 8000`)
-that only Spaces reads — everything after it becomes the Space's description page, so no separate README is
-needed there.
+**Backend → Render (Docker web service, free tier).** Render's Docker deploys read the repo-root
+`Dockerfile` directly — no Render-specific files needed for the manual path; `render.yaml` at the repo root
+is an optional Blueprint that can pre-fill the same setup (New → Blueprint in Render's dashboard) if it
+picks it up cleanly, with the manual steps below as the fallback either way.
 
-1. Create a Space at [huggingface.co/new-space](https://huggingface.co/new-space): SDK **Docker**, any
-   hardware tier (the free CPU tier's RAM is what made HF the pick over most others — `fastembed`'s ONNX
-   runtime needs more than a typical 512 MB free tier elsewhere).
-2. In the Space's **Settings → Repository secrets**, add `GROQ_API_KEY` and `DATABASE_URL` (the same values
-   as your local `.env`) — never commit them.
-3. Push this repo to the Space's own git remote (a Space is its own git repository, separate from GitHub):
-   ```bash
-   git remote add space https://huggingface.co/spaces/<your-username>/<space-name>
-   git push space main
-   ```
-   The Space builds the root `Dockerfile` automatically; watch progress on the Space's **Logs** tab. It runs
-   `alembic upgrade head` on every start, so the schema stays current with no manual step.
-4. Once it's live, verify `https://<space-name>.hf.space/health` returns `{"status": "ok", ...}`.
+1. [New → Web Service](https://dashboard.render.com/select-repo?type=web) → connect this GitHub repo.
+2. **Runtime: Docker**. Leave **Dockerfile Path** as `Dockerfile` and **Docker Build Context Directory** as
+   `.` (repo root) — Render should detect both automatically since they're at the default locations.
+3. **Instance type: Free**. Add environment variables `GROQ_API_KEY` and `DATABASE_URL` (the same values as
+   your local `.env`) in the service's **Environment** tab — never commit them.
+4. Deploy. Render assigns the port via its own `$PORT` env var, which the Dockerfile's `CMD` already reads
+   (`--port ${PORT:-8000}`), and runs `alembic upgrade head` on every start so the schema stays current with
+   no manual step. Watch the **Logs** tab for the first build (~1–2 minutes to install dependencies).
+5. Once it's live, verify `https://<service-name>.onrender.com/health` returns `{"status": "ok", ...}`.
+
+The free tier's 512 MB RAM is why the deployed image installs the backend **without** the `embeddings`
+extra (see the Dockerfile) — `fastembed`'s ONNX models push memory well past what fits comfortably. The
+knowledge base's own loader (`app/api/main.py`'s `_load_knowledge_base`) falls back to lexical-only (BM25)
+search automatically when fastembed isn't installed — a real, measured retrieval-quality trade-off
+(`evals/retrieval.yaml`), not silently accepted: hybrid+rerank scores 93.8%/98.4% Recall@1/3 versus lexical
+alone, still usable but not the ceiling this project is capable of. A paid instance with more RAM can
+restore it by installing `"./backend[embeddings]"` in the Dockerfile instead. (Hugging Face Spaces was the
+original pick here for its generous free-tier RAM, but Spaces now gates the Docker SDK behind a paid PRO
+plan — Render's free Docker web services don't have that restriction as of this writing.)
 
 **Frontend → Vercel.**
 
 1. [Import the GitHub repo](https://vercel.com/new) as a new project.
 2. Set **Root Directory** to `frontend` (Vercel auto-detects Next.js from there — no other build config
    needed).
-3. Add the environment variable `NEXT_PUBLIC_API_BASE_URL` = your Space's URL from above
-   (`https://<space-name>.hf.space`).
-4. Deploy. Once you have the Vercel URL, optionally tighten the backend's `CORS_ORIGINS` secret on the Space
+3. Add the environment variable `NEXT_PUBLIC_API_BASE_URL` = your Render service's URL from above
+   (`https://<service-name>.onrender.com`).
+4. Deploy. Once you have the Vercel URL, optionally tighten the backend's `CORS_ORIGINS` env var on Render
    from the default `*` to that exact URL (`Settings.cors_origins`, `app/settings.py`) — left open by default
    so local development and quick testing aren't blocked by it.
 
 Fill in both URLs at the top of this README once live. No `API_KEY` is set on the deployed backend by
 design, so a reviewer can use the live app without a shared secret — the trade-off (documented here rather
 than silently accepted, the same as the job queue's no-durable-queue trade-off above) is that anyone with the
-URL can trigger an analysis; Groq's own free-tier rate limits bound how much that could cost.
+URL can trigger an analysis; Groq's own free-tier rate limits bound how much that could cost. Render's free
+tier also spins the service down after periods of inactivity — the first request after a while can take
+~30–60 seconds to wake it back up; this is normal, not a bug.
 
 ## Tech stack
 
@@ -401,7 +396,7 @@ URL can trigger an analysis; Groq's own free-tier rate limits bound how much tha
 | Persistence | SQLAlchemy 2.0 (async) + Alembic; Supabase Postgres in production, SQLite with zero setup otherwise |
 | Parsing | defusedxml for NSE/BSE XBRL, pypdfium2 and pdfplumber for PDFs |
 | Frontend | Next.js (App Router), TypeScript, Tailwind, shadcn/ui, TanStack Query, Recharts, pdf.js; types generated from the backend's OpenAPI schema via openapi-typescript/openapi-fetch |
-| Hosting | Hugging Face Spaces (Docker backend), Vercel (frontend) |
+| Hosting | Render (Docker backend, free tier), Vercel (frontend) |
 
 ## Roadmap
 
@@ -418,5 +413,5 @@ URL can trigger an analysis; Groq's own free-tier rate limits bound how much tha
 7. ~~Web app~~ (library, upload, report with a PDF evidence viewer and reasoning trace, learning console)
 8. Sample corpus seeded (the 3 real filings already used for testing — NOCIL, Paramount Communications, KSB —
    uploaded and analyzed against the live database so a reviewer sees real content immediately); deployment
-   is prepared (`Dockerfile`, Spaces/Vercel steps above) — check the URLs at the top of this README to see if
+   is prepared (`Dockerfile`, Render/Vercel steps above) — check the URLs at the top of this README to see if
    it's live yet
