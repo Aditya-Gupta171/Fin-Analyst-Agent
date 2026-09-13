@@ -1,3 +1,13 @@
+---
+title: Financial Analyst Agent
+emoji: 📊
+colorFrom: blue
+colorTo: indigo
+sdk: docker
+app_port: 8000
+pinned: false
+---
+
 # Self-Learning AI Financial Analyst Agent
 
 An AI analyst for Indian market filings: SEBI DRHP / RHP offer documents, Regulation 33 quarterly results and
@@ -5,11 +15,13 @@ annual reports. It reads a filing, checks it the way an experienced analyst woul
 findings (red flags, anomalies, data gaps, questions for management), each backed by cited evidence. It is built
 as a module that a larger fintech platform can call.
 
-> **Status:** in development. Complete, tested and evaluated: the deterministic financial engine, both static
-> knowledge-base layers (rules catalog and semantic knowledge base with hybrid retrieval), ingestion of NSE /
-> BSE XBRL results and DRHP / RHP restated financial statements, and the analyst agent (plan → investigate →
-> review → compose → propose) running live against Groq. The learning service, API and web app are next
-> ([roadmap](#roadmap)).
+> **Status:** feature-complete through the full roadmap — engine, knowledge base, ingestion, the live agent,
+> persistence/API, the learning service, and this web app. Live demo links go here once deployed:
+> **Backend:** `<Hugging Face Space URL>` · **Frontend:** `<Vercel URL>`.
+
+The YAML block above this line is [Hugging Face Spaces](https://huggingface.co/spaces) metadata — if you're
+reading this on GitHub, ignore it; it just makes this same `README.md` double as the Space's description
+when the backend is deployed there (see [Deploying](#deploying)).
 
 ## Core principle: the LLM never produces a number
 
@@ -251,6 +263,7 @@ rules/             knowledge base layer B
 frontend/          Next.js web app — library, analysis report, evidence viewer, learning console
 docs/
   architecture.drawio
+Dockerfile           backend image for Hugging Face Spaces (build context is the repo root, see Deploying)
 ```
 
 ## Running locally
@@ -341,6 +354,43 @@ calibrated rule reliability and reviewing/backtesting/approving agent-proposed r
 come from the backend's own OpenAPI schema (`npm run gen:types`, backend must be running) rather than
 hand-maintained duplicates.
 
+## Deploying
+
+**Backend → Hugging Face Spaces (Docker).** The repo-root `Dockerfile` and `.dockerignore` build the backend
+image; the YAML frontmatter at the very top of this README is Spaces metadata (`sdk: docker`, `app_port: 8000`)
+that only Spaces reads — everything after it becomes the Space's description page, so no separate README is
+needed there.
+
+1. Create a Space at [huggingface.co/new-space](https://huggingface.co/new-space): SDK **Docker**, any
+   hardware tier (the free CPU tier's RAM is what made HF the pick over most others — `fastembed`'s ONNX
+   runtime needs more than a typical 512 MB free tier elsewhere).
+2. In the Space's **Settings → Repository secrets**, add `GROQ_API_KEY` and `DATABASE_URL` (the same values
+   as your local `.env`) — never commit them.
+3. Push this repo to the Space's own git remote (a Space is its own git repository, separate from GitHub):
+   ```bash
+   git remote add space https://huggingface.co/spaces/<your-username>/<space-name>
+   git push space main
+   ```
+   The Space builds the root `Dockerfile` automatically; watch progress on the Space's **Logs** tab. It runs
+   `alembic upgrade head` on every start, so the schema stays current with no manual step.
+4. Once it's live, verify `https://<space-name>.hf.space/health` returns `{"status": "ok", ...}`.
+
+**Frontend → Vercel.**
+
+1. [Import the GitHub repo](https://vercel.com/new) as a new project.
+2. Set **Root Directory** to `frontend` (Vercel auto-detects Next.js from there — no other build config
+   needed).
+3. Add the environment variable `NEXT_PUBLIC_API_BASE_URL` = your Space's URL from above
+   (`https://<space-name>.hf.space`).
+4. Deploy. Once you have the Vercel URL, optionally tighten the backend's `CORS_ORIGINS` secret on the Space
+   from the default `*` to that exact URL (`Settings.cors_origins`, `app/settings.py`) — left open by default
+   so local development and quick testing aren't blocked by it.
+
+Fill in both URLs at the top of this README once live. No `API_KEY` is set on the deployed backend by
+design, so a reviewer can use the live app without a shared secret — the trade-off (documented here rather
+than silently accepted, the same as the job queue's no-durable-queue trade-off above) is that anyone with the
+URL can trigger an analysis; Groq's own free-tier rate limits bound how much that could cost.
+
 ## Tech stack
 
 | Area | Choice |
@@ -366,4 +416,7 @@ hand-maintained duplicates.
 6. ~~Learning service~~ (rule reliability calibrated from feedback, knowledge-chunk utility boosts feeding
    the agent's own retrieval, candidate-rule backtesting and promotion into a version-controlled rule pack)
 7. ~~Web app~~ (library, upload, report with a PDF evidence viewer and reasoning trace, learning console)
-8. Sample corpus of public Indian filings, evaluation set, deployment
+8. Sample corpus seeded (the 3 real filings already used for testing — NOCIL, Paramount Communications, KSB —
+   uploaded and analyzed against the live database so a reviewer sees real content immediately); deployment
+   is prepared (`Dockerfile`, Spaces/Vercel steps above) — check the URLs at the top of this README to see if
+   it's live yet

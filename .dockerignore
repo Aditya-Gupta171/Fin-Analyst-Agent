@@ -1,0 +1,16 @@
+frontend/
+data/
+docs/
+evals/
+.git/
+.github/
+**/__pycache__/
+**/*.pyc
+backend/.venv/
+backend/tests/
+backend/alembic/versions/__pycache__/
+.env
+.env.*
+*.md
+!README.md
+node_modules/
