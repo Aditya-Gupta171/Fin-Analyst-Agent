@@ -5,9 +5,9 @@ annual reports. It reads a filing, checks it the way an experienced analyst woul
 findings (red flags, anomalies, data gaps, questions for management), each backed by cited evidence. It is built
 as a module that a larger fintech platform can call.
 
-> **Status:** in development. The deterministic financial engine and the rules knowledge base (layer B) are
-> complete and tested. The agent, semantic knowledge base, learning service, API and web app are next
-> ([roadmap](#roadmap)).
+> **Status:** in development. The deterministic financial engine and both static knowledge-base layers — the
+> rules catalog (layer B) and the semantic knowledge base with hybrid retrieval (layer A) — are complete, tested
+> and evaluated. The agent, learning service, API and web app are next ([roadmap](#roadmap)).
 
 ## Core principle: the LLM never produces a number
 
@@ -42,7 +42,7 @@ Filing ─► Ingestion ─► Financial engine ─► Fact sheet ─► Agent (
 
 | Layer | Answers | Form | Status |
 | --- | --- | --- | --- |
-| **A. Semantic** | *Why does this matter?* | Curated markdown (Ind AS, SEBI ICDR/LODR, analyst playbooks) indexed in pgvector | planned |
+| **A. Semantic** | *Why does this matter?* | 49 curated markdown documents ([`knowledge/`](knowledge)) with hybrid retrieval | **done** |
 | **B. Rules** | *What should be checked?* | Versioned YAML: taxonomy, metrics, rule packs ([`rules/`](rules)) | **done** |
 | **C. Experience** | *What have we learned?* | Cohort baselines, feedback, precedents, rule reliability | interfaces done |
 
@@ -60,6 +60,35 @@ at load time.
   questions:
     - Were credit terms extended to key customers during the year?
 ```
+
+### Semantic knowledge base and retrieval
+
+[`knowledge/`](knowledge) holds 49 documents written for this project: one for every `kb:` reference in the rules
+(a test enforces this), guides to reading quarterly results, annual reports, DRHPs / RHPs and the three
+statements, an analyst working method, and sector primers (banks, NBFCs, IT services, infrastructure / EPC,
+manufacturing, pharma, FMCG, real estate, consumer internet). Every document uses the same sections — *what it
+measures, how to read it, red flags, benign explanations, where to find it in Indian filings, questions for
+management* — and each section becomes one chunk tagged with its kind. That lets the critic ask for **only benign
+explanations** of a red flag, and lets the agent fetch the document a fired rule names directly, with no ranking.
+
+Open questions go through hybrid retrieval ([`retriever.py`](backend/app/knowledge/retriever.py)): metadata
+filters (document type, sector, section kind) → BM25 with finance abbreviation expansion (DSO, CFO, OFS, GCP…) and
+local dense embeddings (`bge-small`, via fastembed/ONNX, since Groq serves no embedding models) → reciprocal rank
+fusion → cross-encoder rerank of the top 8 → learned per-chunk utility boost from the learning service.
+
+Measured on [`evals/retrieval.yaml`](evals/retrieval.yaml): 64 queries phrased as the agent asks them, many
+paraphrased away from the documents' wording. Scores are document-level; run `python -m app.knowledge.evaluation`.
+
+| Configuration | Recall@1 | Recall@3 | MRR |
+| --- | --- | --- | --- |
+| Lexical (BM25) | 84.4% | 95.3% | 0.905 |
+| Dense (bge-small) | 73.4% | 87.5% | 0.816 |
+| Hybrid (RRF) | 89.1% | 95.3% | 0.932 |
+| **Hybrid + rerank (default)** | **93.8%** | **98.4%** | **0.961** |
+
+Reranking all 20 fused candidates cost about 2 s per query on CPU with no quality gain over reranking the top 8
+(about 0.6 s). Caveat: the documents and the queries were written by the same author, which likely flatters
+lexical scores; queries from real analyst usage will be added as the system is used.
 
 ### How "self-learning" works (no fine-tuning)
 
@@ -100,7 +129,10 @@ backend/
   app/
     domain/        canonical model: fiscal periods, facts, dataset, enums
     engine/        expression language, evaluator, catalog loader, rules, anomalies, fact sheet
+    knowledge/     document parsing, chunking, BM25, embeddings, hybrid retriever, evaluation
   tests/           unit and end-to-end tests with annual, quarterly and RHP fixtures
+knowledge/         knowledge base layer A: 49 curated documents
+evals/             retrieval evaluation set
 rules/             knowledge base layer B
   taxonomy/        93 canonical line items with filing-label aliases
   metrics/         metric formulas
@@ -116,9 +148,10 @@ Requires Python 3.12.
 ```bash
 cd backend
 python -m venv .venv
-.venv/Scripts/python -m pip install -e ".[dev]"   # macOS / Linux: .venv/bin/python
-.venv/Scripts/python -m pytest
+.venv/Scripts/python -m pip install -e ".[dev,embeddings]"   # macOS / Linux: .venv/bin/python
+.venv/Scripts/python -m pytest                               # no model downloads needed
 .venv/Scripts/ruff check app tests
+.venv/Scripts/python -m app.knowledge.evaluation             # retrieval ablation; downloads models once
 ```
 
 ## Tech stack
@@ -135,7 +168,7 @@ python -m venv .venv
 ## Roadmap
 
 1. ~~Deterministic engine, taxonomy, metric registry, rule packs, fact sheet~~
-2. Semantic knowledge base (layer A): curated content, chunking, hybrid retrieval
+2. ~~Semantic knowledge base (layer A): curated content, chunking, hybrid retrieval, evaluation~~
 3. Ingestion: NSE/BSE XBRL, PDF section routing and table extraction, label mapping
 4. Agent: planner, analyst with tools, critic, report composer, rule proposer
 5. Persistence, job queue and REST API with webhooks

@@ -1,0 +1,156 @@
+# Retrieval evaluation set for knowledge base layer A.
+#
+# Queries are phrased the way the agent asks them: planner questions about what to check, analyst questions while
+# explaining a finding, and critic questions looking for innocent explanations. Many deliberately avoid the exact
+# wording of the target document. A query is answered when any `expect` document appears in the ranked results.
+# `kinds` restricts retrieval to section kinds, as the critic does.
+queries:
+  # Earnings quality
+  - query: why would operating cash flow be much lower than reported net profit
+    expect: [earnings-quality/cash-conversion]
+  - query: profits are growing but the company generates no cash from its operations
+    expect: [earnings-quality/cash-conversion]
+  - query: three year cumulative CFO to PAT below 0.6
+    expect: [earnings-quality/cash-conversion]
+  - query: earnings made up of accruals are less persistent
+    expect: [earnings-quality/accruals]
+  - query: company changed useful life of assets to reduce depreciation and lift profit
+    expect: [earnings-quality/accruals]
+  - query: a large part of pre-tax profit comes from treasury income and write-backs
+    expect: [earnings-quality/other-income]
+  - query: interest earned on inter-corporate deposits to promoter group companies
+    expect: [earnings-quality/other-income, governance/related-party-transactions]
+  - query: restructuring charges reported as one-off every single year
+    expect: [earnings-quality/exceptional-items]
+  - query: gain on sale of land boosted this year's profit
+    expect: [earnings-quality/exceptional-items]
+  - query: effective tax rate far below 25 percent under section 115BAA
+    expect: [earnings-quality/tax-rate]
+  - query: deferred tax asset recognised on accumulated losses
+    expect: [earnings-quality/tax-rate]
+
+  # Working capital
+  - query: customers are taking much longer to pay their invoices
+    expect: [working-capital/receivables]
+  - query: debtors growing faster than sales possible channel stuffing
+    expect: [working-capital/receivables]
+  - query: ageing of trade receivables beyond six months and expected credit loss
+    expect: [working-capital/receivables]
+  - query: finished goods piling up in the warehouse while sales slow down
+    expect: [working-capital/inventory]
+  - query: producing more than it sells to absorb fixed overheads into stock
+    expect: [working-capital/inventory]
+  - query: stretching supplier payments to improve operating cash flow
+    expect: [working-capital/payables]
+  - query: dues to micro and small enterprises unpaid beyond 45 days
+    expect: [working-capital/payables]
+  - query: number of days between paying suppliers and collecting from customers
+    expect: [working-capital/cash-conversion-cycle]
+  - query: revenue recognised on fixed price contracts but not yet invoiced
+    expect: [working-capital/unbilled-revenue, sectors/it-services]
+
+  # Leverage, cash flow and returns
+  - query: how many years of EBITDA would it take to repay borrowings
+    expect: [leverage/debt]
+  - query: lease liabilities make a retailer more leveraged than it looks
+    expect: [leverage/debt, cash-flow/free-cash-flow, profitability/ebitda]
+  - query: operating profit barely covers the interest bill
+    expect: [leverage/interest-burden]
+  - query: interest capitalised on projects under construction understates finance cost
+    expect: [leverage/interest-burden, cash-flow/capex]
+  - query: current liabilities are higher than current assets
+    expect: [leverage/liquidity]
+  - query: projects stuck in capital work in progress for years
+    expect: [cash-flow/capex]
+  - query: cash left after capital expenditure to pay dividends
+    expect: [cash-flow/free-cash-flow]
+  - query: is the business earning above its cost of capital
+    expect: [returns/roce]
+  - query: return on equity inflated by leverage DuPont analysis
+    expect: [returns/roe]
+
+  # Profitability and growth
+  - query: how to compute EBITDA from a Schedule III income statement
+    expect: [profitability/ebitda, statements/profit-and-loss]
+  - query: adjusted EBITDA excluding ESOP costs
+    expect: [profitability/ebitda, sectors/consumer-internet]
+  - query: EBITDA margin fell 500 basis points from the previous quarter
+    expect: [profitability/margins]
+  - query: hiring ahead of demand pushed staff costs up faster than revenue
+    expect: [profitability/cost-structure]
+  - query: split revenue growth into volume price and mix
+    expect: [growth/revenue-growth, sectors/fmcg-consumer]
+  - query: EPS grew slower than profit because new shares were issued
+    expect: [integrity/eps-reconciliation, growth/profit-growth]
+
+  # Integrity
+  - query: total assets do not equal equity plus liabilities
+    expect: [integrity/statement-reconciliation]
+  - query: cash in the cash flow statement does not match the balance sheet because of overdrafts
+    expect: [integrity/statement-reconciliation, statements/cash-flow-statement]
+
+  # Governance
+  - query: auditor resigned in the middle of the term
+    expect: [governance/audit-report]
+  - query: qualified opinion or disclaimer by the statutory auditor
+    expect: [governance/audit-report]
+  - query: CARO remarks on stock statements submitted to banks
+    expect: [governance/audit-report, leverage/liquidity]
+  - query: tax demands under appeal and guarantees not recorded as liabilities
+    expect: [governance/contingent-liabilities]
+  - query: sales to promoter group entities needing shareholder approval
+    expect: [governance/related-party-transactions]
+  - query: promoter shares pledged with lenders and risk of forced selling
+    expect: [governance/promoter-pledge]
+  - query: dependence on a single large customer for revenue
+    expect: [governance/customer-concentration]
+
+  # Offer documents
+  - query: IPO money going to selling shareholders instead of the company
+    expect: [offer-document/objects-of-the-offer]
+  - query: limit on general corporate purposes in an IPO
+    expect: [offer-document/objects-of-the-offer]
+  - query: IPO price looks expensive compared with listed competitors
+    expect: [offer-document/basis-for-offer-price]
+  - query: shares bought by investors before the IPO at a much lower price
+    expect: [offer-document/basis-for-offer-price, offer-document/capital-structure]
+  - query: how long promoter shares are locked in after listing
+    expect: [offer-document/capital-structure]
+  - query: criminal cases pending against the promoters
+    expect: [offer-document/litigation]
+  - query: which sections of a red herring prospectus should an analyst read first
+    expect: [filings/red-herring-prospectus]
+  - query: eligibility for companies without three years of operating profit to list
+    expect: [filings/red-herring-prospectus, profitability/margins]
+
+  # Filings, statements and sectors
+  - query: deadline for filing quarterly results and limited review
+    expect: [filings/quarterly-results]
+  - query: where to find related party contracts and subsidiary performance in the annual report
+    expect: [filings/annual-report]
+  - query: gross NPA provision coverage and capital adequacy for a bank
+    expect: [sectors/banking]
+  - query: asset liability mismatch for a lender funded by commercial paper
+    expect: [sectors/nbfc]
+  - query: constant currency growth utilisation and attrition
+    expect: [sectors/it-services]
+  - query: arbitration claims and retention money in construction contracts
+    expect: [sectors/infrastructure]
+  - query: USFDA warning letter or import alert at a plant
+    expect: [sectors/pharma-healthcare]
+  - query: collections versus pre-sales for a housing developer
+    expect: [sectors/real-estate]
+
+  # Critic: looking only for innocent explanations
+  - query: receivables rose sharply at year end
+    expect: [working-capital/receivables]
+    kinds: [benign_explanations]
+  - query: cash flow from operations fell although profit increased
+    expect: [earnings-quality/cash-conversion]
+    kinds: [benign_explanations]
+  - query: inventory increased much more than revenue
+    expect: [working-capital/inventory]
+    kinds: [benign_explanations]
+  - query: large offer for sale component
+    expect: [offer-document/objects-of-the-offer]
+    kinds: [benign_explanations]
