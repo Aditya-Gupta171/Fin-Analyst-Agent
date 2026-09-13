@@ -45,6 +45,7 @@ class LineItem(BaseModel):
     description: str | None = None
     aliases: tuple[str, ...] = ()
     nil_if_absent: bool = False  # optional presentation line: zero when its statement is reported without it
+    sum_rows: bool = False  # several printed rows add up to this item (e.g. capex on PPE and on intangibles)
     xbrl: tuple[Annotated[str, StringConstraints(pattern=r"^-?[A-Za-z]+(#first|#last)?$")], ...] = ()
 
 

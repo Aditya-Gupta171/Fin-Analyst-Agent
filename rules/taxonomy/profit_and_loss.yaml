@@ -60,6 +60,9 @@ items:
     nil_if_absent: true
     description: Reported gain (positive) or loss (negative) presented separately from ordinary activities.
     aliases: [Exceptional items (net), Exceptional gain/(loss)]
+  - key: profit_before_exceptional_items
+    label: Profit before exceptional items and tax
+    xbrl: [ProfitBeforeExceptionalItemsAndTax]
   - key: profit_before_tax
     label: Profit before tax
     xbrl: [ProfitBeforeTax]
@@ -75,7 +78,7 @@ items:
   - key: total_tax_expense
     label: Total tax expense
     xbrl: [TaxExpense]
-    aliases: [Tax expense, Income tax expense]
+    aliases: [Tax expense, Income tax expense, Total tax (expense) / credit, Tax expense / (credit)]
   - key: share_of_profit_of_associates
     label: Share of profit / (loss) of associates and joint ventures
     xbrl: [ShareOfProfitLossOfAssociatesAndJointVenturesAccountedForUsingEquityMethod]

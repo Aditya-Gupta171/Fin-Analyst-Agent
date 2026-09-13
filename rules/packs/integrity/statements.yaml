@@ -22,14 +22,17 @@ rules:
     category: integrity
     severity: medium
     period_kinds: [year, half_year]
-    when: rel_diff(total_equity, equity_share_capital + other_equity + non_controlling_interest) > 0.005
+    when: >
+      rel_diff(total_equity, equity_share_capital + instruments_entirely_equity_in_nature + other_equity
+               + non_controlling_interest) > 0.005
     evidence:
       - total_equity
       - equity_share_capital
       - other_equity
     rationale: >
-      Total equity should equal share capital plus other equity (plus non-controlling interests in consolidated
-      statements). A mismatch usually means a component was missed during extraction.
+      Total equity should equal share capital plus instruments entirely equity in nature (such as compulsorily
+      convertible preference shares) plus other equity, and non-controlling interests in consolidated statements.
+      A mismatch usually means a component was missed during extraction.
     kb: integrity/statement-reconciliation
 
   - id: INT_PROFIT_BRIDGE

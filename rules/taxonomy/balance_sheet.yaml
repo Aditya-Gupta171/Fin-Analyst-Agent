@@ -20,6 +20,7 @@ items:
     nil_if_absent: true
   - key: other_intangible_assets
     label: Other intangible assets
+    aliases: [Intangible assets]
     xbrl: [OtherIntangibleAssets]
   - key: intangible_assets_under_development
     label: Intangible assets under development
@@ -71,6 +72,10 @@ items:
     label: Equity share capital
     xbrl: [EquityShareCapital]
     aliases: [Share capital]
+  - key: instruments_entirely_equity_in_nature
+    label: Instruments entirely equity in nature
+    nil_if_absent: true
+    description: Compulsorily convertible preference shares and similar instruments classified as equity.
   - key: other_equity
     label: Other equity
     xbrl: [OtherEquity]

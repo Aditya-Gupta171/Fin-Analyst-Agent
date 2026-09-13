@@ -6,8 +6,10 @@ items:
     label: Cash generated from operations
     xbrl: [CashFlowsFromUsedInOperations]
     description: Operating cash flow before income taxes paid.
+    aliases: [Cash generated from operating activities]
   - key: income_taxes_paid
     label: Income taxes paid (net)
+    aliases: [Income tax paid, Direct taxes paid (net of refunds)]
     xbrl: [-IncomeTaxesPaidRefundClassifiedAsOperatingActivities]
   - key: net_cash_from_operating_activities
     label: Net cash flow from operating activities
@@ -16,8 +18,15 @@ items:
   - key: purchase_of_property_plant_equipment
     label: Purchase of property, plant and equipment
     xbrl: [-PurchaseOfPropertyPlantAndEquipmentClassifiedAsInvestingActivities, -PurchaseOfIntangibleAssetsClassifiedAsInvestingActivities, -PurchaseOfIntangibleAssetsUnderDevelopment]
+    sum_rows: true
     description: Capital expenditure, including intangibles and capital advances; reported as an outflow (negative).
-    aliases: [Acquisition of property, plant and equipment, Purchase of fixed assets, Capital expenditure]
+    aliases:
+      - Acquisition of property, plant and equipment
+      - Purchase of fixed assets
+      - Capital expenditure
+      - Acquisition of intangible assets
+      - Purchase of intangible assets
+      - Development expenditure on internally generated intangible assets
   - key: proceeds_from_sale_of_property_plant_equipment
     label: Proceeds from sale of property, plant and equipment
     xbrl: [ProceedsFromSalesOfPropertyPlantAndEquipmentClassifiedAsInvestingActivities]
