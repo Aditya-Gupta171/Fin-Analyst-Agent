@@ -112,8 +112,8 @@ def _metrics_table(result: EngineResult) -> str:
         first = records[0]
         if not (first.headline or any(record.ref in cited for record in records)):
             continue
-        cells = " | ".join(f"{record.period} {record.display}" for record in records)
-        rows.append(f"- [m:{first.key}@<period>] {first.name}: {cells}")
+        cells = " | ".join(f"[{record.ref}] {record.display}" for record in records)
+        rows.append(f"- {first.name}: {cells}")
     return "\n".join(["KEY METRICS", *rows]) if rows else ""
 
 
