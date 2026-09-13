@@ -6,9 +6,10 @@ findings (red flags, anomalies, data gaps, questions for management), each backe
 as a module that a larger fintech platform can call.
 
 > **Status:** in development. Complete, tested and evaluated: the deterministic financial engine, both static
-> knowledge-base layers (rules catalog and semantic knowledge base with hybrid retrieval), and ingestion of NSE /
-> BSE XBRL results and DRHP / RHP restated financial statements. The agent, learning service, API and web app are
-> next ([roadmap](#roadmap)).
+> knowledge-base layers (rules catalog and semantic knowledge base with hybrid retrieval), ingestion of NSE /
+> BSE XBRL results and DRHP / RHP restated financial statements, and the analyst agent (plan → investigate →
+> review → compose → propose) running live against Groq. The learning service, API and web app are next
+> ([roadmap](#roadmap)).
 
 ## Core principle: the LLM never produces a number
 
@@ -22,7 +23,62 @@ Language models are good at judgement and bad at arithmetic. So the system is sp
 | Evaluates rule packs and detects statistical anomalies | Writes the analyst narrative and questions |
 
 The agent cites values as references, such as `{{m:dso@FY25}}`, and the server substitutes the verified figure. A
-reference that does not exist is rejected, so a hallucinated number cannot reach an analysis.
+reference that does not exist is rejected, so a hallucinated number cannot reach an analysis. Two more checks
+close the loop: [`bare_figures`](backend/app/engine/references.py) scans every sentence the model writes for a
+number that was not put in as a citation (`"55%"`, `"₹80 crore"`, `"1.8x"`) and rejects it, forcing a repair; and
+[`link_figures`](backend/app/analysis/evidence.py) rewrites a figure the model copies from its own context back
+into the reference it came from, when exactly one reference has that value, so a correct number the model typed
+by hand is turned into a citation rather than punished.
+
+## Agent: plan → investigate → review → compose → propose
+
+[`app/agent/graph.py`](backend/app/agent/graph.py) is a [LangGraph](https://github.com/langchain-ai/langgraph)
+state machine over Groq's `openai/gpt-oss-120b` (reasoning) and `openai/gpt-oss-20b` (lighter structured tasks),
+called through a small OpenAI-compatible gateway ([`app/llm/`](backend/app/llm)) built for the free tier's 8,000
+tokens/minute-per-model limit:
+
+- **`TokenBudget`** ([`budget.py`](backend/app/llm/budget.py)) reads Groq's `x-ratelimit-*` response headers and
+  blocks the next call rather than firing into a 429; a 429 that does happen updates the same budget from
+  `Retry-After`.
+- **`ResponseCache`** ([`cache.py`](backend/app/llm/cache.py)) keys on the full request (model, messages, schema),
+  so re-analysing the same filing costs nothing and tests are reproducible.
+- **`generate()`** ([`structured.py`](backend/app/llm/structured.py)) converts a Pydantic model into the strict
+  JSON-schema dialect Groq's gpt-oss models support (every property required, `additionalProperties: false`,
+  optionals as nullable types, no `$ref`), and repairs a response up to twice — once for the provider's own
+  schema rejection, once for a Pydantic or domain validation failure — by showing the model exactly what was
+  wrong.
+
+The graph itself, per filing:
+
+1. **Plan** — the model reads the ~1.1K-token fact sheet and groups the fired rules and anomalies into up to five
+   non-overlapping lines of enquiry, or dismisses a flag as immaterial with a stated reason.
+2. **Investigate** — one call per enquiry, given only that enquiry's fired rules, evidence and matching knowledge
+   excerpts. The model can request up to three tool lookups first (`metric_history`, `knowledge_search`,
+   `rule_detail` — read-only, deterministic) before answering, or return `no_finding` with a reason.
+3. **Review** — a single call critiques every draft finding at once: `accept`, `revise` (with concrete
+   instructions), or `reject`, and sets the final severity.
+4. **Revise** — findings sent back for revision get one more analyst turn with the reviewer's instructions
+   attached.
+5. **Compose** — the accepted, reviewed findings become a headline, an overall risk level, and executive
+   strengths/concerns.
+6. **Propose** — findings with no matching rule and unexplained anomalies are turned into at most two candidate
+   rules in the same expression language as the rule packs; each is parsed and checked against the catalog
+   before it is ever shown, so an invalid proposal is dropped rather than displayed.
+
+Every node falls back to a deterministic result if its model call ultimately fails (grouped rule findings instead
+of a plan, the rule-only summary instead of a composed one), so **an analysis always completes** — with or
+without a working LLM. [`app/analysis/service.py`](backend/app/analysis/service.py) merges the agent's findings
+with plain rule findings for anything the agent didn't cover into the versioned `AnalysisReport`
+([`report.py`](backend/app/analysis/report.py)), which records `catalog_version`, `kb_version` and a hash of the
+prompts (`prompt_version`) so a report can be reproduced.
+
+Run live against the manufacturing fixture (Groq `gpt-oss-120b`, cold — no cache), the agent turned the five
+fired rules into three specific, evidence-linked findings (grouping the two cash-conversion rules into one
+enquiry), correctly identified and rejected an unsupported factoring explanation, asked for receivables ageing
+by customer, and every figure in every finding, in the executive summary and in the strengths/concerns resolved
+to a citation. Two safe fallbacks fired in that same run — the planner's JSON was rejected by Groq once and fell
+back to grouping fired rules by category, and one proposed rule referenced a non-existent evidence name and was
+dropped — both by design, and the analysis still completed correctly either way.
 
 ## Architecture
 
@@ -167,7 +223,10 @@ backend/
     engine/        expression language, evaluator, catalog loader, rules, anomalies, fact sheet
     knowledge/     document parsing, chunking, BM25, embeddings, hybrid retriever, evaluation
     ingestion/     XBRL results, merging filings, PDF statement extraction, label mapping, reconciliation
-  tests/           unit and end-to-end tests; fixtures from real public filings
+    llm/           Groq client, rate-limit budget, response cache, strict-schema structured generation
+    agent/         LangGraph state machine, prompts, structured I/O schemas, read-only tools
+    analysis/      AnalysisReport, evidence index and citation guardrail, rules-only baseline, orchestration
+  tests/           unit and end-to-end tests; fixtures from real public filings, no LLM network calls
 knowledge/         knowledge base layer A: 49 curated documents
 evals/             retrieval evaluation set
 rules/             knowledge base layer B
@@ -186,17 +245,22 @@ Requires Python 3.12.
 cd backend
 python -m venv .venv
 .venv/Scripts/python -m pip install -e ".[dev,embeddings]"   # macOS / Linux: .venv/bin/python
-.venv/Scripts/python -m pytest                               # no model downloads needed
+.venv/Scripts/python -m pytest                               # no model downloads or network calls needed
 .venv/Scripts/ruff check app tests
 .venv/Scripts/python -m app.knowledge.evaluation             # retrieval ablation; downloads models once
 ```
+
+The test suite never calls Groq: the agent graph is exercised through a scripted fake gateway
+([`test_agent_graph.py`](backend/tests/test_agent_graph.py)) so it runs offline and in CI. To run the agent
+against the real API, add a `.env` file at the repository root with `GROQ_API_KEY=...` (read by
+[`app/settings.py`](backend/app/settings.py) via `pydantic-settings`; never commit this file).
 
 ## Tech stack
 
 | Area | Choice |
 | --- | --- |
 | Backend | Python 3.12, FastAPI, Pydantic v2 |
-| Agent | LangGraph, Groq `openai/gpt-oss-120b` (reasoning) and `openai/gpt-oss-20b` (classification, label mapping) |
+| Agent | LangGraph, Groq `openai/gpt-oss-120b` (reasoning) and `openai/gpt-oss-20b` (classification, label mapping); httpx client with strict JSON-schema output, a rate-limit budget and a response cache |
 | Knowledge base | Supabase Postgres with pgvector and full-text search, fastembed (local embeddings and reranking) |
 | Parsing | defusedxml for NSE/BSE XBRL, pypdfium2 and pdfplumber for PDFs |
 | Frontend | Next.js, TypeScript, Tailwind, shadcn/ui, Recharts, pdf.js |
@@ -208,7 +272,8 @@ python -m venv .venv
 2. ~~Semantic knowledge base (layer A): curated content, chunking, hybrid retrieval, evaluation~~
 3. ~~Ingestion: NSE/BSE XBRL, DRHP/RHP statement extraction, label mapping, merging and reconciliation~~
    (annual report PDFs and offer-structure facts to follow)
-4. Agent: planner, analyst with tools, critic, report composer, rule proposer
+4. ~~Agent: planner, analyst with tools, critic, report composer, rule proposer~~ (running live against Groq;
+   persistence and job orchestration for a production deployment come with step 5)
 5. Persistence, job queue and REST API with webhooks
 6. Learning service: cohort baselines, feedback, rule backtesting
 7. Web app: library, upload, report with evidence viewer, reasoning trace, learning console
