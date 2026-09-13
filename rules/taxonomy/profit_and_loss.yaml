@@ -2,86 +2,121 @@
 # Amounts in ₹ crore. `aliases` are labels seen in filings; ingestion maps them deterministically
 # before falling back to the LLM. `nil_if_absent` marks lines Schedule III only requires when an amount exists:
 # if the statement is reported for a period but the line is not, it is read as zero.
+# `xbrl` lists SEBI Ind AS financial-results XBRL elements (local names). Several are summed; a leading `-`
+# negates (the taxonomy reports cash outflows as positive); `#first` / `#last` pick by position within a period.
 statement: profit_and_loss
 defaults: { unit: inr_crore, nature: flow, scope: period }
 items:
   - key: revenue_from_operations
     label: Revenue from operations
+    xbrl: [RevenueFromOperations]
     aliases: [Revenue from operations (net), Income from operations, Net sales, Sales, Total revenue from operations]
   - key: other_income
     label: Other income
+    xbrl: [OtherIncome]
     aliases: [Other operating and non-operating income]
   - key: total_income
     label: Total income
+    xbrl: [Income]
     aliases: [Total revenue]
   - key: cost_of_materials_consumed
     label: Cost of materials consumed
+    xbrl: [CostOfMaterialsConsumed]
     nil_if_absent: true
     aliases: [Cost of raw materials consumed, Raw materials consumed]
   - key: purchases_of_stock_in_trade
     label: Purchases of stock-in-trade
+    xbrl: [PurchasesOfStockInTrade]
     nil_if_absent: true
     aliases: [Purchase of traded goods, Purchases of traded goods]
   - key: changes_in_inventories
     label: Changes in inventories of finished goods, work-in-progress and stock-in-trade
+    xbrl: [ChangesInInventoriesOfFinishedGoodsWorkInProgressAndStockInTrade]
     nil_if_absent: true
     aliases: [(Increase)/decrease in inventories, Change in inventories]
   - key: employee_benefits_expense
     label: Employee benefits expense
+    xbrl: [EmployeeBenefitExpense]
     aliases: [Employee benefit expenses, Staff costs, Employee cost]
   - key: finance_costs
     label: Finance costs
+    xbrl: [FinanceCosts]
     aliases: [Finance cost, Interest and finance charges, Interest expense]
   - key: depreciation_amortisation
     label: Depreciation and amortisation expense
+    xbrl: [DepreciationDepletionAndAmortisationExpense]
     aliases: [Depreciation and amortization expense, Depreciation, amortisation and impairment]
   - key: other_expenses
     label: Other expenses
+    xbrl: [OtherExpenses]
     aliases: [Other expenditure]
   - key: total_expenses
     label: Total expenses
+    xbrl: [Expenses]
     aliases: [Total expenditure]
   - key: exceptional_items
     label: Exceptional items
+    xbrl: [ExceptionalItemsBeforeTax]
     nil_if_absent: true
     description: Reported gain (positive) or loss (negative) presented separately from ordinary activities.
     aliases: [Exceptional items (net), Exceptional gain/(loss)]
   - key: profit_before_tax
     label: Profit before tax
+    xbrl: [ProfitBeforeTax]
     aliases: [Profit/(loss) before tax, PBT]
   - key: current_tax
     label: Current tax
+    xbrl: [CurrentTax]
   - key: deferred_tax
     label: Deferred tax
+    xbrl: [DeferredTax]
     nil_if_absent: true
     aliases: [Deferred tax charge/(credit)]
   - key: total_tax_expense
     label: Total tax expense
+    xbrl: [TaxExpense]
     aliases: [Tax expense, Income tax expense]
+  - key: share_of_profit_of_associates
+    label: Share of profit / (loss) of associates and joint ventures
+    xbrl: [ShareOfProfitLossOfAssociatesAndJointVenturesAccountedForUsingEquityMethod]
+    nil_if_absent: true
+    description: Equity-accounted share of associates' and joint ventures' profit, presented after tax.
+    aliases: [Share of net profit of associates and joint ventures accounted for using equity method]
+  - key: profit_from_discontinued_operations
+    label: Profit / (loss) from discontinued operations (after tax)
+    xbrl: [ProfitLossFromDiscontinuedOperationsAfterTax]
+    nil_if_absent: true
   - key: profit_after_tax
     label: Profit for the period
+    xbrl: [ProfitLossForPeriod]
     aliases: [Profit/(loss) for the period, Profit after tax, Net profit, PAT, Profit for the year]
   - key: profit_attributable_to_owners
     label: Profit attributable to owners of the parent
     aliases: [Owners of the company, Equity holders of the parent]
   - key: other_comprehensive_income
     label: Other comprehensive income
+    xbrl: [OtherComprehensiveIncomeNetOfTaxes]
     aliases: [Other comprehensive income/(loss), OCI]
   - key: total_comprehensive_income
     label: Total comprehensive income
+    xbrl: [ComprehensiveIncomeForThePeriod]
   - key: eps_basic
     label: Basic EPS
+    xbrl: [BasicEarningsLossPerShareFromContinuingAndDiscontinuedOperations]
     unit: inr
     aliases: [Earnings per share - Basic, Basic (₹)]
   - key: eps_diluted
     label: Diluted EPS
+    xbrl: [DilutedEarningsLossPerShareFromContinuingAndDiscontinuedOperations]
     unit: inr
     aliases: [Earnings per share - Diluted, Diluted (₹)]
   - key: paid_up_equity_share_capital
     label: Paid-up equity share capital
+    xbrl: [PaidUpValueOfEquityShareCapital]
     nature: stock
     aliases: [Paid up equity share capital]
   - key: face_value_per_share
     label: Face value per share
+    xbrl: [FaceValueOfEquityShareCapital]
     unit: inr
     nature: stock

@@ -9,10 +9,18 @@ from __future__ import annotations
 import hashlib
 from collections.abc import Iterable
 from pathlib import Path
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
 import yaml
-from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, ValidationError, field_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    PrivateAttr,
+    StringConstraints,
+    ValidationError,
+    field_validator,
+)
 
 from app.domain.enums import DocType, Nature, Scope, Sector, Severity, Statement, Unit, expand_sectors
 from app.domain.periods import PeriodKind
@@ -37,6 +45,7 @@ class LineItem(BaseModel):
     description: str | None = None
     aliases: tuple[str, ...] = ()
     nil_if_absent: bool = False  # optional presentation line: zero when its statement is reported without it
+    xbrl: tuple[Annotated[str, StringConstraints(pattern=r"^-?[A-Za-z]+(#first|#last)?$")], ...] = ()
 
 
 class _Compiled(BaseModel):

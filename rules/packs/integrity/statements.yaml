@@ -37,14 +37,18 @@ rules:
     category: integrity
     severity: medium
     period_kinds: [year, half_year, quarter, nine_months]
-    when: rel_diff(profit_after_tax, profit_before_tax - coalesce(total_tax_expense, current_tax + deferred_tax)) > 0.01
+    when: >
+      rel_diff(profit_after_tax, profit_before_tax - coalesce(total_tax_expense, current_tax + deferred_tax)
+               + share_of_profit_of_associates + profit_from_discontinued_operations) > 0.01
     evidence:
       - profit_before_tax
       - { expr: "coalesce(total_tax_expense, current_tax + deferred_tax)", label: Tax expense, unit: inr_crore }
+      - share_of_profit_of_associates
+      - profit_from_discontinued_operations
       - profit_after_tax
     rationale: >
-      PAT should equal PBT less tax. Legitimate differences come from discontinued operations or share of profit
-      of associates presented after tax; anything else suggests a data problem.
+      Profit for the period should equal PBT less tax, plus the after-tax share of associates and joint ventures
+      and any profit from discontinued operations. A remaining gap means a line was missed or mis-read.
     kb: integrity/statement-reconciliation
 
   - id: INT_TOTAL_INCOME

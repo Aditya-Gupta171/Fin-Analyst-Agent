@@ -5,71 +5,92 @@ items:
   # Non-current assets
   - key: property_plant_equipment
     label: Property, plant and equipment
+    xbrl: [PropertyPlantAndEquipment]
     aliases: [PPE, Fixed assets, Tangible assets]
   - key: capital_work_in_progress
     label: Capital work-in-progress
+    xbrl: [CapitalWorkInProgress]
     nil_if_absent: true
     aliases: [CWIP, Capital work in progress]
   - key: right_of_use_assets
     label: Right-of-use assets
   - key: goodwill
     label: Goodwill
+    xbrl: [Goodwill]
     nil_if_absent: true
   - key: other_intangible_assets
     label: Other intangible assets
+    xbrl: [OtherIntangibleAssets]
   - key: intangible_assets_under_development
     label: Intangible assets under development
+    xbrl: [IntangibleAssetsUnderDevelopment]
     nil_if_absent: true
   - key: non_current_investments
     label: Non-current investments
+    xbrl: [NoncurrentInvestments]
     aliases: [Investments (non-current)]
   - key: total_non_current_assets
     label: Total non-current assets
+    xbrl: [NoncurrentAssets]
   # Current assets
   - key: inventories
     label: Inventories
+    xbrl: [Inventories]
     nil_if_absent: true
   - key: current_investments
     label: Current investments
+    xbrl: [CurrentInvestments]
     nil_if_absent: true
     aliases: [Investments (current)]
   - key: trade_receivables
     label: Trade receivables
+    xbrl: [TradeReceivablesCurrent, TradeReceivablesNoncurrent]
     aliases: [Sundry debtors, Debtors]
   - key: unbilled_revenue
     label: Unbilled revenue
     aliases: [Contract assets]
   - key: cash_and_cash_equivalents
     label: Cash and cash equivalents
+    xbrl: [CashAndCashEquivalents]
   - key: other_bank_balances
     label: Bank balances other than cash and cash equivalents
+    xbrl: [BankBalanceOtherThanCashAndCashEquivalents]
     nil_if_absent: true
     aliases: [Other bank balances]
   - key: loans_current
     label: Loans (current)
+    xbrl: [LoansCurrent]
   - key: total_current_assets
     label: Total current assets
+    xbrl: [CurrentAssets]
   - key: total_assets
     label: Total assets
+    xbrl: [Assets]
   # Equity
   - key: equity_share_capital
     label: Equity share capital
+    xbrl: [EquityShareCapital]
     aliases: [Share capital]
   - key: other_equity
     label: Other equity
+    xbrl: [OtherEquity]
     aliases: [Reserves and surplus]
   - key: equity_attributable_to_owners
     label: Equity attributable to owners of the parent
+    xbrl: [EquityAttributableToOwnersOfParent]
   - key: non_controlling_interest
     label: Non-controlling interests
+    xbrl: [NonControllingInterest]
     nil_if_absent: true
     aliases: [Minority interest]
   - key: total_equity
     label: Total equity
+    xbrl: [Equity]
     aliases: [Net worth, Shareholders' funds]
   # Liabilities
   - key: borrowings_non_current
     label: Borrowings (non-current)
+    xbrl: [BorrowingsNoncurrent]
     nil_if_absent: true
     aliases: [Long-term borrowings]
   - key: lease_liabilities_non_current
@@ -77,10 +98,13 @@ items:
     nil_if_absent: true
   - key: provisions_non_current
     label: Provisions (non-current)
+    xbrl: [ProvisionsNoncurrent]
   - key: total_non_current_liabilities
     label: Total non-current liabilities
+    xbrl: [NoncurrentLiabilities]
   - key: borrowings_current
     label: Borrowings (current)
+    xbrl: [BorrowingsCurrent]
     nil_if_absent: true
     aliases: [Short-term borrowings]
   - key: lease_liabilities_current
@@ -88,13 +112,17 @@ items:
     nil_if_absent: true
   - key: trade_payables
     label: Trade payables
+    xbrl: [TradePayablesCurrent, TradePayablesNoncurrent]
     aliases: [Sundry creditors, Creditors]
   - key: contract_liabilities
     label: Contract liabilities
     aliases: [Advances from customers, Unearned revenue]
   - key: total_current_liabilities
     label: Total current liabilities
+    xbrl: [CurrentLiabilities]
   - key: total_liabilities
     label: Total liabilities
+    xbrl: [Liabilities]
   - key: total_equity_and_liabilities
     label: Total equity and liabilities
+    xbrl: [EquityAndLiabilities]
