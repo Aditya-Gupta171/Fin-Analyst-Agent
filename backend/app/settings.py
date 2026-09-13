@@ -25,6 +25,13 @@ class Settings(BaseSettings):
     llm_max_retries: int = 4
     llm_cache_dir: Path | None = REPO_ROOT / "data" / "llm_cache"
 
+    # Defaults to a local SQLite file so the API runs with no setup; point it at Supabase (or any Postgres)
+    # with e.g. postgresql+asyncpg://user:pass@host:5432/postgres to persist there instead.
+    database_url: str = f"sqlite+aiosqlite:///{REPO_ROOT / 'data' / 'app.db'}"
+    cors_origins: list[str] = ["*"]
+    api_key: SecretStr | None = None  # when set, POST/DELETE endpoints require `Authorization: Bearer <key>`
+    max_concurrent_analyses: int = 2
+
     @property
     def llm_enabled(self) -> bool:
         return self.groq_api_key is not None and bool(self.groq_api_key.get_secret_value())

@@ -226,6 +226,10 @@ backend/
     llm/           Groq client, rate-limit budget, response cache, strict-schema structured generation
     agent/         LangGraph state machine, prompts, structured I/O schemas, read-only tools
     analysis/      AnalysisReport, evidence index and citation guardrail, rules-only baseline, orchestration
+    db/            SQLAlchemy models, async engine/session, cohort-baseline persistence
+    jobs/          in-process async job queue, the analysis job runner, live progress store
+    api/           FastAPI app: document/analysis/rules/health routers, request/response schemas
+  alembic/         migration environment and versions (Postgres in production; tests bypass this)
   tests/           unit and end-to-end tests; fixtures from real public filings, no LLM network calls
 knowledge/         knowledge base layer A: 49 curated documents
 evals/             retrieval evaluation set
@@ -255,13 +259,52 @@ The test suite never calls Groq: the agent graph is exercised through a scripted
 against the real API, add a `.env` file at the repository root with `GROQ_API_KEY=...` (read by
 [`app/settings.py`](backend/app/settings.py) via `pydantic-settings`; never commit this file).
 
+## Running the API
+
+```bash
+cd backend
+.venv/Scripts/python -m uvicorn app.api.main:app --reload   # http://127.0.0.1:8000/docs for the OpenAPI UI
+```
+
+With no further configuration this persists to a local SQLite file at `data/app.db` (created on first
+startup) — nothing else to set up. Endpoints:
+
+| Method & path | Does |
+| --- | --- |
+| `POST /documents` | Upload a filing (multipart `file`, optional `sector`/`source_url`); ingests it deterministically and stores the parsed dataset. |
+| `GET /documents`, `GET /documents/{id}` | List / fetch an uploaded document. |
+| `POST /documents/{id}/analyses` | Queue an analysis job (engine + agent) for that document. |
+| `GET /analyses/{id}`, `GET /analyses` | Poll an analysis's status, and the full `AnalysisReport` once it succeeds. |
+| `GET /analyses/{id}/events` | Server-sent events with live progress (stage/message) until it finishes. |
+| `GET /analyses/{id}/findings` | The report's findings, normalized for listing/filtering. |
+| `POST /analyses/{id}/findings/{finding_id}/feedback` | Record an analyst's confirm/dismiss verdict. |
+| `GET /rules/candidates`, `POST /rules/candidates/{id}/decision` | Review and approve/reject agent-proposed rules. |
+| `GET /health` | Catalog/knowledge-base/DB readiness. |
+
+A background analysis job runs off the request thread (`app/jobs/`); a process restart marks any job still
+`queued`/`running` as failed rather than leaving it stuck (there's no durable queue — a single container and
+Groq's own free-tier rate limit make one unnecessary for now).
+
+### Using Supabase Postgres instead of SQLite
+
+1. Create a free project at [supabase.com](https://supabase.com) and open **Project Settings → Database**.
+2. Copy the connection string (the pooled "Transaction" one on port 6543 is fine) and add it to `.env` as:
+   ```
+   DATABASE_URL=postgresql+asyncpg://postgres:<password>@<host>:6543/postgres
+   ```
+3. Apply the schema: `.venv/Scripts/python -m alembic upgrade head`.
+
+The app reads `DATABASE_URL` on startup and works identically either way — switching databases is just that
+one environment variable plus running the migration.
+
 ## Tech stack
 
 | Area | Choice |
 | --- | --- |
 | Backend | Python 3.12, FastAPI, Pydantic v2 |
 | Agent | LangGraph, Groq `openai/gpt-oss-120b` (reasoning) and `openai/gpt-oss-20b` (classification, label mapping); httpx client with strict JSON-schema output, a rate-limit budget and a response cache |
-| Knowledge base | Supabase Postgres with pgvector and full-text search, fastembed (local embeddings and reranking) |
+| Knowledge base | BM25 + fastembed (local ONNX embeddings and cross-encoder reranking), reciprocal rank fusion |
+| Persistence | SQLAlchemy 2.0 (async) + Alembic; Supabase Postgres in production, SQLite with zero setup otherwise |
 | Parsing | defusedxml for NSE/BSE XBRL, pypdfium2 and pdfplumber for PDFs |
 | Frontend | Next.js, TypeScript, Tailwind, shadcn/ui, Recharts, pdf.js |
 | Hosting | Hugging Face Spaces (Docker backend), Vercel (frontend) |
@@ -272,9 +315,10 @@ against the real API, add a `.env` file at the repository root with `GROQ_API_KE
 2. ~~Semantic knowledge base (layer A): curated content, chunking, hybrid retrieval, evaluation~~
 3. ~~Ingestion: NSE/BSE XBRL, DRHP/RHP statement extraction, label mapping, merging and reconciliation~~
    (annual report PDFs and offer-structure facts to follow)
-4. ~~Agent: planner, analyst with tools, critic, report composer, rule proposer~~ (running live against Groq;
-   persistence and job orchestration for a production deployment come with step 5)
-5. Persistence, job queue and REST API with webhooks
+4. ~~Agent: planner, analyst with tools, critic, report composer, rule proposer~~ (running live against Groq)
+5. ~~Persistence, job queue and REST API~~ (documents/analyses/findings/feedback/cohort baselines/rule
+   versions in SQLAlchemy + Alembic; an in-process job queue for analysis runs; FastAPI endpoints to upload,
+   trigger, poll/stream and give feedback on a report)
 6. Learning service: cohort baselines, feedback, rule backtesting
 7. Web app: library, upload, report with evidence viewer, reasoning trace, learning console
 8. Sample corpus of public Indian filings, evaluation set, deployment

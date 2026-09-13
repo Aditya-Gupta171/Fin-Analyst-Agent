@@ -6,11 +6,7 @@ fixtures/annual_report_manufacturing.yaml) so enquiries, evidence references and
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import Any
-
 import pytest
-from pydantic import BaseModel
 
 from app.agent.graph import (
     AgentContext,
@@ -36,8 +32,9 @@ from app.agent.schemas import (
 from app.analysis.evidence import EvidenceIndex
 from app.engine.catalog import Catalog
 from app.engine.pipeline import EngineResult, run_engine
-from app.llm.types import CallRecord, LLMError
+from app.llm.types import LLMError
 from tests.builders import load_fixture
+from tests.fake_gateway import FakeGateway
 
 
 @pytest.fixture(scope="module")
@@ -59,50 +56,6 @@ def ref(result: EngineResult, key: str, period: str = "FY25") -> str:
         if fact.key == key and fact.period == period:
             return fact.ref
     raise AssertionError(f"no evidence found for {key}@{period}")
-
-
-@dataclass
-class FakeGateway:
-    """Replays scripted outputs per node prefix; supports repair sequences and forced errors."""
-
-    script: dict[str, list[Any]] = field(default_factory=dict)
-    calls: list[CallRecord] = field(default_factory=list)
-
-    def generate(
-        self,
-        output: type[BaseModel],
-        *,
-        node: str,
-        tier: str,
-        system: str,
-        user: str,
-        max_completion_tokens: int,
-        effort: str = "medium",
-        validate=None,
-    ) -> BaseModel:
-        prefix = node.split(":")[0]
-        queue = self.script.get(prefix, self.script.get(node, []))
-        problems: list[str] = []
-        for attempt, item in enumerate(list(queue)):
-            self.calls.append(
-                CallRecord(
-                    node=node,
-                    model="fake",
-                    prompt_tokens=1,
-                    completion_tokens=1,
-                    reasoning_tokens=0,
-                    latency_ms=0,
-                    cached=False,
-                    attempts=attempt + 1,
-                    outcome="ok",
-                )
-            )
-            if isinstance(item, Exception):
-                raise item
-            problems = validate(item) if validate else []
-            if not problems:
-                return item
-        raise LLMError(f"{node}: fake gateway exhausted its script; last problems {problems}")
 
 
 # ── deterministic_plan / rule_problems (pure, no gateway) ────────────────────────────────────────────────
