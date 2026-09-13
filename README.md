@@ -247,7 +247,8 @@ evals/             retrieval evaluation set
 rules/             knowledge base layer B
   taxonomy/        97 canonical line items with filing-label aliases and XBRL element mappings
   metrics/         metric formulas
-  packs/           integrity, core, quarterly, offer_document rule packs
+  packs/           integrity, core, quarterly, offer_document, learned (agent-promoted) rule packs
+frontend/          Next.js web app — library, analysis report, evidence viewer, learning console
 docs/
   architecture.drawio
 ```
@@ -320,7 +321,25 @@ The app reads `DATABASE_URL` on startup and works identically either way — swi
 one environment variable plus running the migration. Because the pooler runs in transaction mode, the engine
 (`app/db/engine.py`) disables asyncpg's prepared-statement cache (`statement_cache_size=0`); without that,
 queries intermittently fail with `DuplicatePreparedStatementError` once the pooler reuses a server
-connection under a different client statement cache.
+connection under a different client statement cache. The engine also sets `pool_pre_ping=True` and a
+`pool_recycle` under the pooler's own idle timeout, since it silently closes connections it considers
+idle — without those, a request can hit `asyncpg.exceptions.InterfaceError: connection is closed`.
+
+## Running the frontend
+
+```bash
+cd frontend
+npm install
+npm run dev   # http://localhost:3000
+```
+
+Expects the backend at `http://localhost:8000` (override with `NEXT_PUBLIC_API_BASE_URL`). Pages: `/` the
+document library and upload dialog, `/documents/[id]` a filing's detail and analysis history, `/analyses/[id]`
+the full report (findings with an evidence viewer that renders the source PDF page via pdf.js, a reasoning
+trace of every LLM call, scorecard/metrics/candidate rules), and `/learning` the console for feedback-
+calibrated rule reliability and reviewing/backtesting/approving agent-proposed rules. Request/response types
+come from the backend's own OpenAPI schema (`npm run gen:types`, backend must be running) rather than
+hand-maintained duplicates.
 
 ## Tech stack
 
@@ -331,7 +350,7 @@ connection under a different client statement cache.
 | Knowledge base | BM25 + fastembed (local ONNX embeddings and cross-encoder reranking), reciprocal rank fusion |
 | Persistence | SQLAlchemy 2.0 (async) + Alembic; Supabase Postgres in production, SQLite with zero setup otherwise |
 | Parsing | defusedxml for NSE/BSE XBRL, pypdfium2 and pdfplumber for PDFs |
-| Frontend | Next.js, TypeScript, Tailwind, shadcn/ui, Recharts, pdf.js |
+| Frontend | Next.js (App Router), TypeScript, Tailwind, shadcn/ui, TanStack Query, Recharts, pdf.js; types generated from the backend's OpenAPI schema via openapi-typescript/openapi-fetch |
 | Hosting | Hugging Face Spaces (Docker backend), Vercel (frontend) |
 
 ## Roadmap
@@ -346,5 +365,5 @@ connection under a different client statement cache.
    trigger, poll/stream and give feedback on a report)
 6. ~~Learning service~~ (rule reliability calibrated from feedback, knowledge-chunk utility boosts feeding
    the agent's own retrieval, candidate-rule backtesting and promotion into a version-controlled rule pack)
-7. Web app: library, upload, report with evidence viewer, reasoning trace, learning console
+7. ~~Web app~~ (library, upload, report with a PDF evidence viewer and reasoning trace, learning console)
 8. Sample corpus of public Indian filings, evaluation set, deployment

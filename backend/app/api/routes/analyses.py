@@ -31,11 +31,14 @@ async def trigger_analysis(document_id: str, state: AppStateDep, session: Sessio
     analysis = Analysis(document_id=document_id)
     session.add(analysis)
     await session.commit()
-    await session.refresh(analysis)
+    analysis_id = analysis.id  # captured now: `analysis` itself must never be touched from `job()`, which
+    # runs as a bare background task, outside this request's session (and, once backgrounded, quite
+    # possibly outside its lifetime) — SQLAlchemy's async ORM needs an active greenlet context for any
+    # lazy attribute load, which a detached object accessed from a plain asyncio.Task does not have.
 
     async def job() -> None:
         await run_analysis(
-            analysis.id,
+            analysis_id,
             document_id,
             session_factory=state.session_factory,
             catalog=state.catalog,

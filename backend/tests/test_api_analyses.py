@@ -5,6 +5,7 @@ analysis only returns once it has finished, keeping these tests deterministic wi
 
 from __future__ import annotations
 
+import time
 from pathlib import Path
 
 import pytest
@@ -79,6 +80,32 @@ def test_agent_mode_analysis_uses_the_scripted_gateway(
         assert report["headline"] == "Nothing further to add beyond the rule library"
         # the rules the (empty) plan didn't cover still surface as rule-origin findings
         assert report["findings"]
+
+
+def test_background_job_actually_runs_to_completion(
+    database_url: str, document_id: str, catalog: Catalog
+) -> None:
+    """Regression test: the job queue's default (non-eager) mode schedules `job()` as a bare
+    ``asyncio.create_task``, running after — and outside — the request's own DB session. An earlier bug
+    closed over the ``Analysis`` ORM object itself instead of its plain ``id``, which crashed with
+    ``MissingGreenlet`` the moment the background task touched it, silently leaving the analysis stuck at
+    "queued" forever. Every other analysis test uses ``eager_jobs=True``, which runs the job inline within
+    the same session and would never have exercised that path.
+    """
+    settings = Settings(database_url=database_url)
+    app = build_app(settings, catalog=catalog, kb=None, gateway=None, eager_jobs=False)
+    with TestClient(app) as client:
+        triggered = client.post(f"/documents/{document_id}/analyses")
+        assert triggered.status_code == 202, triggered.text
+        analysis_id = triggered.json()["id"]
+
+        deadline = time.monotonic() + 10
+        status = triggered.json()["status"]
+        while status in ("queued", "running") and time.monotonic() < deadline:
+            time.sleep(0.1)
+            status = client.get(f"/analyses/{analysis_id}").json()["status"]
+
+        assert status == "succeeded", f"stuck at {status!r} — the background job never completed"
 
 
 def _app(database_url: str, catalog: Catalog):

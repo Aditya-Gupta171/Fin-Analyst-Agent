@@ -12,12 +12,21 @@ from app.db.models import Base
 
 
 def make_engine(database_url: str) -> AsyncEngine:
-    # Supabase's connection pooler (Supavisor/PgBouncer, transaction mode) multiplexes many client
-    # connections onto few server ones, so asyncpg's per-connection prepared-statement cache goes stale
-    # and raises DuplicatePreparedStatementError. Disabling it is the documented fix; SQLite ignores the
-    # extra kwarg's absence since it's only passed for asyncpg.
-    connect_args = {"statement_cache_size": 0} if "+asyncpg" in database_url else {}
-    return create_async_engine(database_url, connect_args=connect_args)
+    if "+asyncpg" not in database_url:
+        return create_async_engine(database_url)
+    return create_async_engine(
+        database_url,
+        # Supabase's connection pooler (Supavisor/PgBouncer, transaction mode) multiplexes many client
+        # connections onto few server ones, so asyncpg's per-connection prepared-statement cache goes
+        # stale and raises DuplicatePreparedStatementError. Disabling it is the documented fix.
+        connect_args={"statement_cache_size": 0},
+        # The pooler also closes connections it considers idle without telling this side, which
+        # otherwise surfaces mid-request as `asyncpg.exceptions.InterfaceError: connection is closed`.
+        # pre_ping tests a connection before handing it out and transparently replaces a dead one;
+        # recycle drops connections proactively before the pooler's own idle timeout gets there first.
+        pool_pre_ping=True,
+        pool_recycle=280,
+    )
 
 
 def make_session_factory(engine: AsyncEngine) -> async_sessionmaker[AsyncSession]:

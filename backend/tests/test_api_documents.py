@@ -51,6 +51,11 @@ def test_upload_ingests_a_real_filing_and_the_document_is_then_listable_and_fetc
     assert detail_body["fact_count"] > 0
     assert detail_body["dataset"]["facts"]
 
+    raw = client.get(f"/documents/{document_id}/file")
+    assert raw.status_code == 200
+    assert raw.content == content
+    assert raw.headers["content-type"] == "application/xml"
+
 
 def test_upload_rejects_a_file_no_parser_understands(client: TestClient) -> None:
     response = client.post("/documents", files={"file": ("notes.txt", b"just some text", "text/plain")})
@@ -60,3 +65,7 @@ def test_upload_rejects_a_file_no_parser_understands(client: TestClient) -> None
 
 def test_get_unknown_document_is_404(client: TestClient) -> None:
     assert client.get("/documents/does-not-exist").status_code == 404
+
+
+def test_get_unknown_document_file_is_404(client: TestClient) -> None:
+    assert client.get("/documents/does-not-exist/file").status_code == 404

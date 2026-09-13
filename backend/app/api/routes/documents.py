@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import date
 from typing import Annotated
 
-from fastapi import APIRouter, File, Form, HTTPException, UploadFile, status
+from fastapi import APIRouter, File, Form, HTTPException, Response, UploadFile, status
 from sqlalchemy import select
 
 from app.api.deps import AppStateDep, RequireApiKey, SessionDep
@@ -76,6 +76,15 @@ async def get_document(document_id: str, session: SessionDep) -> DocumentDetail:
     dataset = FinancialDataset.model_validate(row.dataset_json)
     summary = _summary(row, dataset)
     return DocumentDetail(**summary.model_dump(), fact_count=len(dataset.facts), dataset=row.dataset_json)
+
+
+@router.get("/{document_id}/file")
+async def get_document_file(document_id: str, session: SessionDep) -> Response:
+    """The raw uploaded bytes — the evidence viewer renders a PDF-sourced fact's source page from this."""
+    row = await session.get(Document, document_id)
+    if row is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "document not found")
+    return Response(content=row.file_bytes, media_type=row.content_type)
 
 
 def _summary(row: Document, dataset: FinancialDataset) -> DocumentSummary:
