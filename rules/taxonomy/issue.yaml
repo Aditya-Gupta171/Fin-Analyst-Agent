@@ -1,0 +1,40 @@
+# Offer-document facts (SEBI ICDR Regulations, 2018): The Offer, Objects of the Offer, Basis for Offer Price,
+# Capital Structure and Outstanding Litigation sections of a DRHP / RHP.
+statement: issue
+defaults: { unit: inr_crore, nature: stock, scope: document }
+items:
+  - key: total_issue_size
+    label: Total offer size
+    aliases: [Offer size, Issue size]
+  - key: fresh_issue_size
+    label: Fresh issue
+    aliases: [Fresh issue of equity shares]
+  - key: offer_for_sale_size
+    label: Offer for sale
+    aliases: [OFS]
+  - key: general_corporate_purposes
+    label: General corporate purposes
+  - key: objects_debt_repayment
+    label: Repayment or prepayment of borrowings (objects of the offer)
+  - key: price_band_upper
+    label: Upper end of price band
+    unit: inr
+    aliases: [Cap price, Offer price]
+  - key: peer_median_pe
+    label: Median P/E of listed peers
+    unit: times
+    description: From the Basis for Offer Price section.
+  - key: promoter_holding_pre_issue
+    label: Promoter holding before the offer
+    unit: ratio
+  - key: promoter_holding_post_issue
+    label: Promoter holding after the offer
+    unit: ratio
+  - key: promoter_average_cost_per_share
+    label: Weighted average cost of acquisition for promoters
+    unit: inr
+  - key: litigation_amount_against_company
+    label: Amount involved in outstanding litigation against the company
+  - key: litigation_criminal_against_promoters
+    label: Outstanding criminal proceedings against promoters
+    unit: count

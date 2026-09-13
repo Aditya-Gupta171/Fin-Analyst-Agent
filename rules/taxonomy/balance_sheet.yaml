@@ -1,0 +1,100 @@
+# Balance Sheet — Division II, Schedule III (Ind AS). Point-in-time balances in ₹ crore.
+statement: balance_sheet
+defaults: { unit: inr_crore, nature: stock, scope: period }
+items:
+  # Non-current assets
+  - key: property_plant_equipment
+    label: Property, plant and equipment
+    aliases: [PPE, Fixed assets, Tangible assets]
+  - key: capital_work_in_progress
+    label: Capital work-in-progress
+    nil_if_absent: true
+    aliases: [CWIP, Capital work in progress]
+  - key: right_of_use_assets
+    label: Right-of-use assets
+  - key: goodwill
+    label: Goodwill
+    nil_if_absent: true
+  - key: other_intangible_assets
+    label: Other intangible assets
+  - key: intangible_assets_under_development
+    label: Intangible assets under development
+    nil_if_absent: true
+  - key: non_current_investments
+    label: Non-current investments
+    aliases: [Investments (non-current)]
+  - key: total_non_current_assets
+    label: Total non-current assets
+  # Current assets
+  - key: inventories
+    label: Inventories
+    nil_if_absent: true
+  - key: current_investments
+    label: Current investments
+    nil_if_absent: true
+    aliases: [Investments (current)]
+  - key: trade_receivables
+    label: Trade receivables
+    aliases: [Sundry debtors, Debtors]
+  - key: unbilled_revenue
+    label: Unbilled revenue
+    aliases: [Contract assets]
+  - key: cash_and_cash_equivalents
+    label: Cash and cash equivalents
+  - key: other_bank_balances
+    label: Bank balances other than cash and cash equivalents
+    nil_if_absent: true
+    aliases: [Other bank balances]
+  - key: loans_current
+    label: Loans (current)
+  - key: total_current_assets
+    label: Total current assets
+  - key: total_assets
+    label: Total assets
+  # Equity
+  - key: equity_share_capital
+    label: Equity share capital
+    aliases: [Share capital]
+  - key: other_equity
+    label: Other equity
+    aliases: [Reserves and surplus]
+  - key: equity_attributable_to_owners
+    label: Equity attributable to owners of the parent
+  - key: non_controlling_interest
+    label: Non-controlling interests
+    nil_if_absent: true
+    aliases: [Minority interest]
+  - key: total_equity
+    label: Total equity
+    aliases: [Net worth, Shareholders' funds]
+  # Liabilities
+  - key: borrowings_non_current
+    label: Borrowings (non-current)
+    nil_if_absent: true
+    aliases: [Long-term borrowings]
+  - key: lease_liabilities_non_current
+    label: Lease liabilities (non-current)
+    nil_if_absent: true
+  - key: provisions_non_current
+    label: Provisions (non-current)
+  - key: total_non_current_liabilities
+    label: Total non-current liabilities
+  - key: borrowings_current
+    label: Borrowings (current)
+    nil_if_absent: true
+    aliases: [Short-term borrowings]
+  - key: lease_liabilities_current
+    label: Lease liabilities (current)
+    nil_if_absent: true
+  - key: trade_payables
+    label: Trade payables
+    aliases: [Sundry creditors, Creditors]
+  - key: contract_liabilities
+    label: Contract liabilities
+    aliases: [Advances from customers, Unearned revenue]
+  - key: total_current_liabilities
+    label: Total current liabilities
+  - key: total_liabilities
+    label: Total liabilities
+  - key: total_equity_and_liabilities
+    label: Total equity and liabilities

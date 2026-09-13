@@ -1,0 +1,214 @@
+metrics:
+  # Working capital
+  - key: dso
+    name: Days sales outstanding
+    formula: avg(trade_receivables) / revenue_from_operations * days()
+    unit: days
+    category: working_capital
+    better: lower
+    headline: true
+    sectors_exclude: [financials]
+    description: Average number of days of revenue tied up in trade receivables.
+    kb: working-capital/receivables
+  - key: dio
+    name: Days inventory outstanding
+    formula: avg(inventories) / cost_of_goods_sold * days()
+    unit: days
+    category: working_capital
+    better: lower
+    sectors_exclude: [financials, it_services, consumer_internet]
+    description: Average number of days of material cost held as inventory.
+    kb: working-capital/inventory
+  - key: dpo
+    name: Days payables outstanding
+    formula: avg(trade_payables) / cost_of_goods_sold * days()
+    unit: days
+    category: working_capital
+    sectors_exclude: [financials, it_services, consumer_internet]
+    description: Average number of days of material cost owed to suppliers.
+    kb: working-capital/payables
+  - key: cash_conversion_cycle
+    name: Cash conversion cycle
+    formula: dso + dio - dpo
+    unit: days
+    category: working_capital
+    better: lower
+    sectors_exclude: [financials, it_services, consumer_internet]
+    description: Days between paying suppliers and collecting from customers.
+    kb: working-capital/cash-conversion-cycle
+  - key: net_working_capital
+    name: Trade working capital
+    formula: trade_receivables + inventories - trade_payables
+    unit: inr_crore
+    category: working_capital
+    sectors_exclude: [financials]
+    description: Receivables plus inventories less trade payables.
+    kb: working-capital/cash-conversion-cycle
+  - key: unbilled_revenue_share
+    name: Unbilled share of receivables
+    formula: unbilled_revenue / (trade_receivables + unbilled_revenue)
+    unit: ratio
+    category: working_capital
+    better: lower
+    sectors_exclude: [financials]
+    description: Revenue recognised but not yet invoiced, as a share of total customer dues.
+    kb: working-capital/unbilled-revenue
+
+  # Leverage and liquidity
+  - key: total_debt
+    name: Total borrowings
+    formula: borrowings_non_current + borrowings_current
+    unit: inr_crore
+    category: leverage
+    sectors_exclude: [financials]
+    description: Non-current plus current borrowings (including current maturities). Lease liabilities excluded.
+    kb: leverage/debt
+  - key: net_debt
+    name: Net debt
+    formula: total_debt - cash_and_cash_equivalents - other_bank_balances - current_investments
+    unit: inr_crore
+    category: leverage
+    better: lower
+    sectors_exclude: [financials]
+    description: Borrowings less cash, bank balances and current investments. Negative means net cash.
+    kb: leverage/debt
+  - key: debt_to_equity
+    name: Debt to equity
+    formula: total_debt / total_equity
+    unit: times
+    category: leverage
+    better: lower
+    headline: true
+    sectors_exclude: [financials]
+    description: Borrowings per rupee of total equity.
+    kb: leverage/debt
+  - key: net_debt_to_ebitda
+    name: Net debt to EBITDA
+    formula: net_debt / (ebitda * 365 / days())
+    unit: times
+    category: leverage
+    better: lower
+    sectors_exclude: [financials]
+    description: Years of annualised EBITDA needed to repay net debt.
+    kb: leverage/debt
+  - key: interest_coverage
+    name: Interest coverage
+    formula: ebit / finance_costs
+    unit: times
+    category: leverage
+    better: higher
+    headline: true
+    sectors_exclude: [financials]
+    description: Operating EBIT per rupee of finance costs.
+    kb: leverage/interest-burden
+  - key: current_ratio
+    name: Current ratio
+    formula: total_current_assets / total_current_liabilities
+    unit: times
+    category: liquidity
+    better: higher
+    sectors_exclude: [financials]
+    description: Current assets per rupee of current liabilities.
+    kb: leverage/liquidity
+  - key: quick_ratio
+    name: Quick ratio
+    formula: (total_current_assets - inventories) / total_current_liabilities
+    unit: times
+    category: liquidity
+    better: higher
+    sectors_exclude: [financials]
+    description: Current assets excluding inventories per rupee of current liabilities.
+    kb: leverage/liquidity
+
+  # Cash flow quality and capital intensity
+  - key: capex
+    name: Capital expenditure
+    formula: -purchase_of_property_plant_equipment
+    unit: inr_crore
+    category: cash_flow
+    description: Cash spent on property, plant, equipment and intangibles.
+    kb: cash-flow/capex
+  - key: free_cash_flow
+    name: Free cash flow
+    formula: net_cash_from_operating_activities - capex
+    unit: inr_crore
+    category: cash_flow
+    better: higher
+    headline: true
+    description: Operating cash flow after capital expenditure.
+    kb: cash-flow/free-cash-flow
+  - key: cfo_to_pat
+    name: Operating cash flow to net profit
+    formula: net_cash_from_operating_activities / profit_after_tax
+    unit: times
+    category: earnings_quality
+    better: higher
+    headline: true
+    description: How much of reported profit converted into operating cash in the period.
+    kb: earnings-quality/cash-conversion
+  - key: cfo_to_ebitda
+    name: Operating cash flow to EBITDA
+    formula: net_cash_from_operating_activities / ebitda
+    unit: times
+    category: earnings_quality
+    better: higher
+    sectors_exclude: [financials]
+    description: Operating cash flow (after tax and working capital) per rupee of EBITDA.
+    kb: earnings-quality/cash-conversion
+  - key: cumulative_cfo_to_pat_3y
+    name: Three-year cumulative CFO to PAT
+    formula: trailing_sum(net_cash_from_operating_activities, 3) / trailing_sum(profit_after_tax, 3)
+    unit: times
+    category: earnings_quality
+    better: higher
+    description: Cash conversion over three years, which smooths out one-off working-capital swings.
+    kb: earnings-quality/cash-conversion
+  - key: accruals_ratio
+    name: Accruals ratio
+    formula: (profit_after_tax - net_cash_from_operating_activities) / avg(total_assets)
+    unit: ratio
+    category: earnings_quality
+    better: lower
+    description: Profit not backed by operating cash, scaled by average assets (Sloan accruals).
+    kb: earnings-quality/accruals
+  - key: capex_to_depreciation
+    name: Capex to depreciation
+    formula: capex / depreciation_amortisation
+    unit: times
+    category: cash_flow
+    description: Below 1 for long stretches suggests under-investment; well above 1 signals an expansion phase.
+    kb: cash-flow/capex
+  - key: cwip_to_ppe
+    name: Capital work-in-progress to PPE
+    formula: capital_work_in_progress / property_plant_equipment
+    unit: ratio
+    category: cash_flow
+    sectors_exclude: [financials]
+    description: Size of unfinished projects relative to the operating asset base.
+    kb: cash-flow/capex
+
+  # Governance and disclosures
+  - key: contingent_liabilities_to_net_worth
+    name: Contingent liabilities to net worth
+    formula: contingent_liabilities / total_equity
+    unit: ratio
+    category: governance
+    better: lower
+    description: Off-balance-sheet claims and guarantees relative to total equity.
+    kb: governance/contingent-liabilities
+  - key: related_party_revenue_share
+    name: Related-party share of revenue
+    formula: related_party_revenue / revenue_from_operations
+    unit: ratio
+    category: governance
+    better: lower
+    description: Revenue earned from related parties.
+    kb: governance/related-party-transactions
+  - key: related_party_loans_to_net_worth
+    name: Related-party loans to net worth
+    formula: related_party_loans_given / total_equity
+    unit: ratio
+    category: governance
+    better: lower
+    description: Loans and advances outstanding from related parties relative to total equity.
+    kb: governance/related-party-transactions

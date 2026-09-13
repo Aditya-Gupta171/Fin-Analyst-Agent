@@ -1,0 +1,125 @@
+metrics:
+  # Growth — year-on-year for annual periods, versus the same quarter last year for quarters.
+  - key: revenue_growth
+    name: Revenue growth (YoY)
+    formula: growth(revenue_from_operations)
+    unit: ratio
+    category: growth
+    better: higher
+    headline: true
+    description: Change in revenue from operations against the comparable prior period.
+    kb: growth/revenue-growth
+  - key: revenue_growth_qoq
+    name: Revenue growth (QoQ)
+    formula: seq_growth(revenue_from_operations)
+    unit: ratio
+    category: growth
+    better: higher
+    description: Change in revenue against the immediately preceding period.
+    kb: growth/revenue-growth
+  - key: ebitda_growth
+    name: EBITDA growth (YoY)
+    formula: growth(ebitda)
+    unit: ratio
+    category: growth
+    better: higher
+    description: Change in EBITDA against the comparable prior period.
+    kb: growth/profit-growth
+  - key: pat_growth
+    name: Net profit growth (YoY)
+    formula: growth(profit_after_tax)
+    unit: ratio
+    category: growth
+    better: higher
+    headline: true
+    description: Change in profit for the period against the comparable prior period.
+    kb: growth/profit-growth
+  - key: eps_growth
+    name: Diluted EPS growth (YoY)
+    formula: growth(eps_diluted)
+    unit: ratio
+    category: growth
+    better: higher
+    description: Change in diluted EPS. Diverges from profit growth when the share count changes.
+    kb: growth/profit-growth
+  - key: employee_cost_growth
+    name: Employee cost growth (YoY)
+    formula: growth(employee_benefits_expense)
+    unit: ratio
+    category: growth
+    better: lower
+    description: Change in employee benefits expense.
+    kb: profitability/cost-structure
+  - key: receivables_growth
+    name: Trade receivables growth (YoY)
+    formula: growth(trade_receivables)
+    unit: ratio
+    category: working_capital
+    better: lower
+    sectors_exclude: [financials]
+    description: Change in trade receivables between balance-sheet dates.
+    kb: working-capital/receivables
+  - key: inventory_growth
+    name: Inventory growth (YoY)
+    formula: growth(inventories)
+    unit: ratio
+    category: working_capital
+    better: lower
+    sectors_exclude: [financials]
+    description: Change in inventories between balance-sheet dates.
+    kb: working-capital/inventory
+  - key: borrowings_growth
+    name: Borrowings growth (YoY)
+    formula: growth(total_debt)
+    unit: ratio
+    category: leverage
+    better: lower
+    sectors_exclude: [financials]
+    description: Change in total borrowings.
+    kb: leverage/debt
+
+  # Returns — flows are annualised so quarterly and annual figures are comparable.
+  - key: capital_employed
+    name: Capital employed
+    formula: total_equity + total_debt
+    unit: inr_crore
+    category: returns
+    sectors_exclude: [financials]
+    description: Equity plus borrowings.
+    kb: returns/roce
+  - key: roe
+    name: Return on equity
+    formula: profit_after_tax * 365 / days() / avg(total_equity)
+    unit: ratio
+    category: returns
+    better: higher
+    headline: true
+    description: Annualised profit over average total equity.
+    kb: returns/roe
+  - key: roce
+    name: Return on capital employed
+    formula: ebit * 365 / days() / avg(capital_employed)
+    unit: ratio
+    category: returns
+    better: higher
+    headline: true
+    sectors_exclude: [financials]
+    description: Annualised operating EBIT over average capital employed.
+    kb: returns/roce
+  - key: roa
+    name: Return on assets
+    formula: profit_after_tax * 365 / days() / avg(total_assets)
+    unit: ratio
+    category: returns
+    better: higher
+    description: Annualised profit over average total assets.
+    kb: returns/roe
+  - key: asset_turnover
+    name: Asset turnover
+    formula: revenue_from_operations * 365 / days() / avg(total_assets)
+    unit: times
+    category: returns
+    better: higher
+    sectors_exclude: [financials]
+    description: Annualised revenue per rupee of average total assets.
+    kb: returns/roce

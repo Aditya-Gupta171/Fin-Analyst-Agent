@@ -1,0 +1,38 @@
+# Statement of Cash Flows (Ind AS 7). Signs as reported: inflows positive, outflows negative.
+statement: cash_flow
+defaults: { unit: inr_crore, nature: flow, scope: period }
+items:
+  - key: cash_generated_from_operations
+    label: Cash generated from operations
+    description: Operating cash flow before income taxes paid.
+  - key: income_taxes_paid
+    label: Income taxes paid (net)
+  - key: net_cash_from_operating_activities
+    label: Net cash flow from operating activities
+    aliases: [Net cash generated from operating activities, Net cash from/(used in) operating activities, CFO]
+  - key: purchase_of_property_plant_equipment
+    label: Purchase of property, plant and equipment
+    description: Capital expenditure, including intangibles and capital advances; reported as an outflow (negative).
+    aliases: [Acquisition of property, plant and equipment, Purchase of fixed assets, Capital expenditure]
+  - key: proceeds_from_sale_of_property_plant_equipment
+    label: Proceeds from sale of property, plant and equipment
+    nil_if_absent: true
+  - key: net_cash_from_investing_activities
+    label: Net cash flow from investing activities
+    aliases: [Net cash used in investing activities, CFI]
+  - key: interest_paid
+    label: Interest paid
+    aliases: [Finance costs paid]
+  - key: dividends_paid
+    label: Dividends paid
+    nil_if_absent: true
+  - key: net_cash_from_financing_activities
+    label: Net cash flow from financing activities
+    aliases: [Net cash used in financing activities, CFF]
+  - key: net_change_in_cash
+    label: Net increase/(decrease) in cash and cash equivalents
+  - key: opening_cash_and_equivalents
+    label: Cash and cash equivalents at the beginning of the period
+  - key: closing_cash_and_equivalents
+    label: Cash and cash equivalents at the end of the period
+    description: Per the cash flow statement; may be net of bank overdrafts, unlike the balance sheet figure.

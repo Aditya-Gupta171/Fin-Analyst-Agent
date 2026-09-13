@@ -1,0 +1,108 @@
+metrics:
+  - key: ebitda
+    name: EBITDA
+    formula: revenue_from_operations - (total_expenses - finance_costs - depreciation_amortisation)
+    unit: inr_crore
+    category: profitability
+    better: higher
+    headline: true
+    description: Operating profit before depreciation, amortisation and finance costs; excludes other income.
+    kb: profitability/ebitda
+  - key: ebit
+    name: Operating EBIT
+    formula: ebitda - depreciation_amortisation
+    unit: inr_crore
+    category: profitability
+    better: higher
+    description: Operating profit after depreciation, before finance costs and other income.
+    kb: profitability/ebitda
+  - key: cost_of_goods_sold
+    name: Cost of goods sold
+    formula: cost_of_materials_consumed + purchases_of_stock_in_trade + changes_in_inventories
+    unit: inr_crore
+    category: profitability
+    description: Materials consumed plus traded purchases, adjusted for inventory change. Nil for businesses without material costs.
+  - key: gross_margin
+    name: Gross margin
+    formula: (revenue_from_operations - cost_of_goods_sold) / revenue_from_operations
+    unit: ratio
+    category: profitability
+    better: higher
+    sectors_exclude: [financials, it_services, consumer_internet]
+    description: Share of revenue left after direct material costs.
+    kb: profitability/margins
+  - key: ebitda_margin
+    name: EBITDA margin
+    formula: ebitda / revenue_from_operations
+    unit: ratio
+    category: profitability
+    better: higher
+    headline: true
+    sectors_exclude: [financials]
+    description: EBITDA as a share of revenue from operations.
+    kb: profitability/margins
+  - key: pat_margin
+    name: Net profit margin
+    formula: profit_after_tax / revenue_from_operations
+    unit: ratio
+    category: profitability
+    better: higher
+    headline: true
+    description: Profit for the period as a share of revenue from operations.
+    kb: profitability/margins
+  - key: employee_cost_ratio
+    name: Employee cost to revenue
+    formula: employee_benefits_expense / revenue_from_operations
+    unit: ratio
+    category: profitability
+    better: lower
+    description: Employee benefits expense as a share of revenue.
+    kb: profitability/cost-structure
+  - key: other_expenses_ratio
+    name: Other expenses to revenue
+    formula: other_expenses / revenue_from_operations
+    unit: ratio
+    category: profitability
+    better: lower
+    description: Other expenses as a share of revenue.
+    kb: profitability/cost-structure
+  - key: other_income_share_of_pbt
+    name: Other income share of PBT
+    formula: other_income / profit_before_tax
+    unit: ratio
+    category: earnings_quality
+    better: lower
+    description: How much of pre-tax profit comes from non-operating income (treasury income, gains, write-backs).
+    kb: earnings-quality/other-income
+  - key: exceptional_items_share_of_pbt
+    name: Exceptional items share of PBT
+    formula: exceptional_items / profit_before_tax
+    unit: ratio
+    category: earnings_quality
+    description: Exceptional gains (positive) or losses (negative) relative to pre-tax profit.
+    kb: earnings-quality/exceptional-items
+  - key: effective_tax_rate
+    name: Effective tax rate
+    formula: coalesce(total_tax_expense, current_tax + deferred_tax) / profit_before_tax
+    unit: ratio
+    category: earnings_quality
+    description: Total tax expense divided by profit before tax. Compare with 25.17% (section 115BAA) or ~34.9% (old regime).
+    kb: earnings-quality/tax-rate
+  - key: finance_cost_to_revenue
+    name: Finance cost to revenue
+    formula: finance_costs / revenue_from_operations
+    unit: ratio
+    category: leverage
+    better: lower
+    sectors_exclude: [financials]
+    description: Finance costs as a share of revenue.
+    kb: leverage/interest-burden
+  - key: implied_eps
+    name: EPS implied by profit and share capital
+    formula: >
+      coalesce(profit_attributable_to_owners, profit_after_tax) * face_value_per_share
+      / coalesce(paid_up_equity_share_capital, equity_share_capital)
+    unit: inr
+    category: integrity
+    description: Profit divided by shares outstanding at period end (share capital / face value). Weighted-average shares used in reported EPS can differ after an issue or buyback.
+    kb: integrity/eps-reconciliation

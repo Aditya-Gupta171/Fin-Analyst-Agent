@@ -1,0 +1,49 @@
+# Notes, auditor's report, shareholding and related-party disclosures.
+statement: disclosure
+defaults: { unit: inr_crore, nature: stock, scope: period }
+items:
+  - key: contingent_liabilities
+    label: Contingent liabilities not provided for
+    description: Claims not acknowledged as debt, guarantees and other commitments (Ind AS 37).
+  - key: related_party_revenue
+    label: Revenue from related parties
+    nature: flow
+  - key: related_party_purchases
+    label: Purchases from related parties
+    nature: flow
+  - key: related_party_loans_given
+    label: Loans and advances to related parties (outstanding)
+  - key: top_10_customer_revenue_share
+    label: Revenue share of top 10 customers
+    unit: ratio
+    nature: flow
+  - key: top_customer_revenue_share
+    label: Revenue share of largest customer
+    unit: ratio
+    nature: flow
+  - key: auditor_opinion
+    label: Auditor's opinion
+    unit: text
+    scope: document
+    description: "One of: unmodified, qualified, adverse, disclaimer."
+  - key: emphasis_of_matter
+    label: Emphasis of matter paragraph present
+    unit: text
+    scope: document
+    description: "yes or no."
+  - key: auditor_changed_during_period
+    label: Statutory auditor changed or resigned during the period
+    unit: text
+    scope: document
+    description: "yes or no."
+  - key: promoter_holding
+    label: Promoter and promoter group shareholding
+    unit: ratio
+    scope: document
+  - key: promoter_shares_pledged
+    label: Promoter shares pledged or encumbered (share of promoter holding)
+    unit: ratio
+    scope: document
+  - key: employee_count
+    label: Number of employees
+    unit: count

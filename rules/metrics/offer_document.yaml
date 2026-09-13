@@ -1,0 +1,69 @@
+# Offer-document metrics. Document-scoped: evaluated once, against the latest restated financial year.
+metrics:
+  - key: ofs_share_of_issue
+    name: Offer for sale share of issue
+    formula: offer_for_sale_size / total_issue_size
+    unit: ratio
+    scope: document
+    category: issue_structure
+    description: Portion of the offer that goes to selling shareholders rather than to the company.
+    kb: offer-document/objects-of-the-offer
+  - key: gcp_share_of_fresh_issue
+    name: General corporate purposes share of fresh issue
+    formula: general_corporate_purposes / fresh_issue_size
+    unit: ratio
+    scope: document
+    category: issue_structure
+    better: lower
+    description: Unspecified use of proceeds. SEBI ICDR Regulation 7(2) caps it at 25% of gross proceeds.
+    kb: offer-document/objects-of-the-offer
+  - key: debt_repayment_share_of_fresh_issue
+    name: Debt repayment share of fresh issue
+    formula: objects_debt_repayment / fresh_issue_size
+    unit: ratio
+    scope: document
+    category: issue_structure
+    description: Share of the fresh issue earmarked for repaying borrowings.
+    kb: offer-document/objects-of-the-offer
+  - key: issue_pe
+    name: P/E at upper price band
+    formula: price_band_upper / eps_diluted
+    unit: times
+    scope: document
+    category: valuation
+    description: Upper price band divided by diluted EPS of the latest restated financial year.
+    kb: offer-document/basis-for-offer-price
+  - key: issue_pe_premium_to_peers
+    name: P/E premium to listed peers
+    formula: issue_pe / peer_median_pe - 1
+    unit: ratio
+    scope: document
+    category: valuation
+    better: lower
+    description: How far the offer P/E sits above the median of the listed peers named in the offer document.
+    kb: offer-document/basis-for-offer-price
+  - key: promoter_cost_multiple
+    name: Offer price to promoter acquisition cost
+    formula: price_band_upper / promoter_average_cost_per_share
+    unit: times
+    scope: document
+    category: issue_structure
+    description: Upper price band relative to the promoters' weighted average cost of acquisition.
+    kb: offer-document/capital-structure
+  - key: promoter_dilution
+    name: Promoter holding given up in the offer
+    formula: promoter_holding_pre_issue - promoter_holding_post_issue
+    unit: ratio
+    scope: document
+    category: issue_structure
+    description: Fall in promoter shareholding from before to after the offer (percentage points).
+    kb: offer-document/capital-structure
+  - key: litigation_to_net_worth
+    name: Outstanding litigation to net worth
+    formula: litigation_amount_against_company / total_equity
+    unit: ratio
+    scope: document
+    category: governance
+    better: lower
+    description: Amount involved in outstanding litigation against the company relative to its total equity.
+    kb: offer-document/litigation
