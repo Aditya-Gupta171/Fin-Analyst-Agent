@@ -5,9 +5,10 @@ annual reports. It reads a filing, checks it the way an experienced analyst woul
 findings (red flags, anomalies, data gaps, questions for management), each backed by cited evidence. It is built
 as a module that a larger fintech platform can call.
 
-> **Status:** in development. The deterministic financial engine and both static knowledge-base layers — the
-> rules catalog (layer B) and the semantic knowledge base with hybrid retrieval (layer A) — are complete, tested
-> and evaluated. The agent, learning service, API and web app are next ([roadmap](#roadmap)).
+> **Status:** in development. Complete, tested and evaluated: the deterministic financial engine, both static
+> knowledge-base layers (rules catalog and semantic knowledge base with hybrid retrieval), and ingestion of NSE /
+> BSE XBRL results and DRHP / RHP restated financial statements. The agent, learning service, API and web app are
+> next ([roadmap](#roadmap)).
 
 ## Core principle: the LLM never produces a number
 
@@ -122,6 +123,41 @@ Design choices that matter for correctness:
 - **Safe expressions.** Rules are parsed into a whitelisted AST and interpreted; nothing reaches `eval`.
 - **Reproducibility.** The catalog has a content hash, recorded with every analysis.
 
+## Ingestion: from a filing to the canonical dataset
+
+Every source becomes the same [`FinancialDataset`](backend/app/domain/financials.py), so a new format never touches
+analysis code. Each fact keeps its source (XBRL element, or PDF page and printed label).
+
+**NSE / BSE XBRL results** ([`xbrl.py`](backend/app/ingestion/xbrl.py)) — the highest-fidelity input. Element
+mappings live in the taxonomy next to each line item. Built against unmodified public filings (NOCIL, Paramount
+Communications, KSB; see [`tests/fixtures/xbrl`](backend/tests/fixtures/xbrl)), which revealed what a
+specification alone would not: values in full rupees whatever rounding is declared, cash outflows tagged as
+positive numbers, context dates that contradict the reporting period stated inside them, a January–December
+fiscal year, and opening and closing cash told apart only by position. One filing holds only the current quarter
+and year to date, so [`merge.py`](backend/app/ingestion/merge.py) combines filings for comparatives and flags any
+figure a later filing restates.
+
+**DRHP / RHP PDFs** ([`pdf/`](backend/app/ingestion/pdf)) — restated statements are located by their headings and
+read from word positions rather than extracted text, because character spacing splits numbers (`1 5,647.23`) and
+period headers wrap across lines. Columns are found from the right edges of the amounts, rows are mapped to the
+taxonomy with section context ("Borrowings" under current or non-current liabilities) and sub-rows add up to their
+header. Presentation differences are then corrected using the statements' own arithmetic
+([`reconcile.py`](backend/app/ingestion/reconcile.py)): "total expenses" shown before finance costs and
+depreciation, exceptional losses printed as positive amounts, and tax shown as "(expense) / credit".
+
+Results on three real offer documents — every fact traced to a page, every integrity check passing except where
+the filing itself explains the difference:
+
+| Document | Periods | Facts | Integrity checks |
+| --- | --- | --- | --- |
+| Hyundai Motor India RHP | FY22–FY24, Q1FY24, Q1FY25 | 285 | all pass |
+| Ola Electric Mobility RHP | FY22–FY24 | 180 | all pass except cash flow vs balance sheet cash (bank overdraft netted in the cash flow statement) |
+| Rentomojo DRHP | FY23–FY25, H1FY26 | 212 | all pass except EPS growth vs profit growth (share count changed) |
+
+Not yet covered: annual report and quarterly results PDFs (use the XBRL filing), and offer-structure facts (issue
+size, offer for sale, objects), which in an RHP are largely blank until the price band is fixed and are left to the
+agent's document tools. PDF parsing uses pdfium and pdfplumber (permissive licences) rather than PyMuPDF (AGPL).
+
 ## Repository layout
 
 ```
@@ -130,11 +166,12 @@ backend/
     domain/        canonical model: fiscal periods, facts, dataset, enums
     engine/        expression language, evaluator, catalog loader, rules, anomalies, fact sheet
     knowledge/     document parsing, chunking, BM25, embeddings, hybrid retriever, evaluation
-  tests/           unit and end-to-end tests with annual, quarterly and RHP fixtures
+    ingestion/     XBRL results, merging filings, PDF statement extraction, label mapping, reconciliation
+  tests/           unit and end-to-end tests; fixtures from real public filings
 knowledge/         knowledge base layer A: 49 curated documents
 evals/             retrieval evaluation set
 rules/             knowledge base layer B
-  taxonomy/        93 canonical line items with filing-label aliases
+  taxonomy/        97 canonical line items with filing-label aliases and XBRL element mappings
   metrics/         metric formulas
   packs/           integrity, core, quarterly, offer_document rule packs
 docs/
@@ -161,7 +198,7 @@ python -m venv .venv
 | Backend | Python 3.12, FastAPI, Pydantic v2 |
 | Agent | LangGraph, Groq `openai/gpt-oss-120b` (reasoning) and `openai/gpt-oss-20b` (classification, label mapping) |
 | Knowledge base | Supabase Postgres with pgvector and full-text search, fastembed (local embeddings and reranking) |
-| Parsing | PyMuPDF, Docling, lxml for NSE/BSE XBRL |
+| Parsing | defusedxml for NSE/BSE XBRL, pypdfium2 and pdfplumber for PDFs |
 | Frontend | Next.js, TypeScript, Tailwind, shadcn/ui, Recharts, pdf.js |
 | Hosting | Hugging Face Spaces (Docker backend), Vercel (frontend) |
 
@@ -169,7 +206,8 @@ python -m venv .venv
 
 1. ~~Deterministic engine, taxonomy, metric registry, rule packs, fact sheet~~
 2. ~~Semantic knowledge base (layer A): curated content, chunking, hybrid retrieval, evaluation~~
-3. Ingestion: NSE/BSE XBRL, PDF section routing and table extraction, label mapping
+3. ~~Ingestion: NSE/BSE XBRL, DRHP/RHP statement extraction, label mapping, merging and reconciliation~~
+   (annual report PDFs and offer-structure facts to follow)
 4. Agent: planner, analyst with tools, critic, report composer, rule proposer
 5. Persistence, job queue and REST API with webhooks
 6. Learning service: cohort baselines, feedback, rule backtesting
