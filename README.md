@@ -287,15 +287,22 @@ Groq's own free-tier rate limit make one unnecessary for now).
 
 ### Using Supabase Postgres instead of SQLite
 
-1. Create a free project at [supabase.com](https://supabase.com) and open **Project Settings → Database**.
-2. Copy the connection string (the pooled "Transaction" one on port 6543 is fine) and add it to `.env` as:
+1. Create a free project at [supabase.com](https://supabase.com) and open **Project Settings → Database →
+   Connection string**, **"Transaction" pooler** tab (port 6543). Supabase's *direct* connection host
+   (port 5432) is IPv6-only and won't resolve on a network without IPv6 egress; the pooler host
+   (`aws-0-<region>.pooler.supabase.com`, username `postgres.<project-ref>`) works everywhere.
+2. Add it to `.env` — the plain `postgresql://` URI Supabase gives you is fine as-is:
    ```
-   DATABASE_URL=postgresql+asyncpg://postgres:<password>@<host>:6543/postgres
+   DATABASE_URL=postgresql://postgres.<project-ref>:<password>@aws-0-<region>.pooler.supabase.com:6543/postgres
    ```
+   (`app/settings.py` upgrades it to `postgresql+asyncpg://` automatically.)
 3. Apply the schema: `.venv/Scripts/python -m alembic upgrade head`.
 
 The app reads `DATABASE_URL` on startup and works identically either way — switching databases is just that
-one environment variable plus running the migration.
+one environment variable plus running the migration. Because the pooler runs in transaction mode, the engine
+(`app/db/engine.py`) disables asyncpg's prepared-statement cache (`statement_cache_size=0`); without that,
+queries intermittently fail with `DuplicatePreparedStatementError` once the pooler reuses a server
+connection under a different client statement cache.
 
 ## Tech stack
 

@@ -5,7 +5,7 @@ from __future__ import annotations
 from functools import lru_cache
 from pathlib import Path
 
-from pydantic import SecretStr
+from pydantic import SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from app.paths import REPO_ROOT
@@ -31,6 +31,16 @@ class Settings(BaseSettings):
     cors_origins: list[str] = ["*"]
     api_key: SecretStr | None = None  # when set, POST/DELETE endpoints require `Authorization: Bearer <key>`
     max_concurrent_analyses: int = 2
+
+    @field_validator("database_url")
+    @classmethod
+    def _use_the_async_postgres_driver(cls, url: str) -> str:
+        """Supabase's dashboard hands out a plain ``postgresql://`` URL; upgrade it to the async driver
+        (``asyncpg``) this app's engine needs, so pasting it into ``.env`` as-is just works."""
+        for prefix in ("postgresql://", "postgres://"):
+            if url.startswith(prefix):
+                return "postgresql+asyncpg://" + url.removeprefix(prefix)
+        return url
 
     @property
     def llm_enabled(self) -> bool:

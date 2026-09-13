@@ -6,11 +6,10 @@ counterpart configured here.
 import asyncio
 from logging.config import fileConfig
 
-from sqlalchemy import pool
 from sqlalchemy.engine import Connection
-from sqlalchemy.ext.asyncio import async_engine_from_config
 
 from alembic import context
+from app.db.engine import make_engine
 from app.db.models import Base
 from app.settings import get_settings
 
@@ -44,9 +43,9 @@ def do_run_migrations(connection: Connection) -> None:
 
 
 async def run_migrations_online() -> None:
-    configuration = config.get_section(config.config_ini_section) or {}
-    configuration["sqlalchemy.url"] = get_url()
-    connectable = async_engine_from_config(configuration, prefix="sqlalchemy.", poolclass=pool.NullPool)
+    # Reuses the app's own make_engine() (rather than building one from alembic.ini) so a migration run
+    # against Supabase's pooler gets the same statement_cache_size=0 fix the app's engine needs.
+    connectable = make_engine(get_url())
     async with connectable.connect() as connection:
         await connection.run_sync(do_run_migrations)
     await connectable.dispose()

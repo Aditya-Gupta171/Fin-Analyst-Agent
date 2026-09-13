@@ -12,7 +12,12 @@ from app.db.models import Base
 
 
 def make_engine(database_url: str) -> AsyncEngine:
-    return create_async_engine(database_url)
+    # Supabase's connection pooler (Supavisor/PgBouncer, transaction mode) multiplexes many client
+    # connections onto few server ones, so asyncpg's per-connection prepared-statement cache goes stale
+    # and raises DuplicatePreparedStatementError. Disabling it is the documented fix; SQLite ignores the
+    # extra kwarg's absence since it's only passed for asyncpg.
+    connect_args = {"statement_cache_size": 0} if "+asyncpg" in database_url else {}
+    return create_async_engine(database_url, connect_args=connect_args)
 
 
 def make_session_factory(engine: AsyncEngine) -> async_sessionmaker[AsyncSession]:
