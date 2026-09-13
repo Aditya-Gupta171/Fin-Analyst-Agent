@@ -1,0 +1,111 @@
+rules:
+  - id: GOV_AUDITOR_MODIFIED_OPINION
+    title: Auditor issued a modified opinion
+    category: governance
+    severity: critical
+    scope: document
+    when: auditor_opinion in ["qualified", "adverse", "disclaimer"]
+    evidence: [auditor_opinion]
+    rationale: >
+      A qualified or adverse opinion, or a disclaimer, means the auditor could not confirm that the financial
+      statements give a true and fair view. Every number in the filing should be read in light of the
+      qualification.
+    kb: governance/audit-report
+    questions:
+      - What is the basis for the modification and has the company quantified its impact?
+
+  - id: GOV_EMPHASIS_OF_MATTER
+    title: Auditor's report contains an emphasis of matter
+    category: governance
+    severity: medium
+    scope: document
+    when: emphasis_of_matter == "yes"
+    evidence: [emphasis_of_matter]
+    rationale: >
+      An emphasis of matter does not modify the opinion but highlights an issue the auditor considers
+      fundamental, such as going-concern uncertainty, material litigation or regulatory action.
+    kb: governance/audit-report
+
+  - id: GOV_AUDITOR_CHANGE
+    title: Statutory auditor changed or resigned
+    category: governance
+    severity: high
+    scope: document
+    when: auditor_changed_during_period == "yes"
+    evidence: [auditor_changed_during_period]
+    rationale: >
+      A mid-term auditor resignation (as opposed to rotation under section 139 of the Companies Act) is a
+      well-known warning sign; SEBI requires the reasons to be disclosed.
+    kb: governance/audit-report
+    questions:
+      - Was the change a scheduled rotation or a resignation, and what reasons did the outgoing auditor give?
+
+  - id: GOV_PROMOTER_PLEDGE
+    title: Significant share of promoter holding pledged
+    category: governance
+    severity: high
+    scope: document
+    when: promoter_shares_pledged > 0.25
+    escalations:
+      - { when: promoter_shares_pledged > 0.5, severity: critical }
+    evidence: [promoter_shares_pledged, promoter_holding]
+    rationale: >
+      Pledged shares can be sold by lenders if the price falls, which can trigger a sharp decline and a change
+      of control. High pledging also suggests promoter-level financial stress.
+    kb: governance/promoter-pledge
+
+  - id: GOV_CONTINGENT_LIABILITIES_LARGE
+    title: Contingent liabilities large relative to net worth
+    category: governance
+    severity: high
+    applies_to: [annual_report, drhp, rhp]
+    when: contingent_liabilities_to_net_worth > 0.5
+    escalations:
+      - { when: contingent_liabilities_to_net_worth > 1, severity: critical }
+    evidence: [contingent_liabilities, total_equity, contingent_liabilities_to_net_worth]
+    rationale: >
+      Contingent liabilities (tax demands, guarantees, disputed claims) are off the balance sheet, but if a
+      material part crystallises it can wipe out a large share of equity.
+    kb: governance/contingent-liabilities
+    questions:
+      - Which are the largest contingent liabilities and what is management's assessment of their outcome?
+
+  - id: GOV_RELATED_PARTY_REVENUE
+    title: High share of revenue from related parties
+    category: governance
+    severity: medium
+    period_kinds: [year]
+    when: related_party_revenue_share > 0.20
+    escalations:
+      - { when: related_party_revenue_share > 0.5, severity: high }
+    evidence: [related_party_revenue, revenue_from_operations, related_party_revenue_share]
+    rationale: >
+      Revenue from related parties may not be on arm's-length terms and depends on the group rather than the
+      market. SEBI LODR Regulation 23 requires shareholder approval for material related-party transactions.
+    kb: governance/related-party-transactions
+    questions:
+      - Are related-party sales priced at arm's length, and were they approved under Regulation 23?
+
+  - id: GOV_RELATED_PARTY_LOANS
+    title: Material loans outstanding to related parties
+    category: governance
+    severity: high
+    period_kinds: [year]
+    when: related_party_loans_to_net_worth > 0.10
+    evidence: [related_party_loans_given, total_equity, related_party_loans_to_net_worth]
+    rationale: >
+      Loans to promoter group entities move cash out of the listed company and are a common route for value
+      leakage.
+    kb: governance/related-party-transactions
+
+  - id: GOV_CUSTOMER_CONCENTRATION
+    title: Revenue concentrated in few customers
+    category: governance
+    severity: medium
+    period_kinds: [year]
+    when: top_10_customer_revenue_share > 0.60 or top_customer_revenue_share > 0.25
+    evidence: [top_customer_revenue_share, top_10_customer_revenue_share]
+    rationale: >
+      Losing a single large customer would materially affect revenue, and concentrated customers usually hold
+      pricing power.
+    kb: governance/customer-concentration

@@ -1,0 +1,140 @@
+# Rules for Draft / Red Herring Prospectuses (SEBI ICDR Regulations, 2018).
+rules:
+  - id: IPO_OFS_HEAVY
+    title: Most of the offer is an offer for sale
+    category: issue_structure
+    severity: medium
+    applies_to: [drhp, rhp]
+    scope: document
+    when: ofs_share_of_issue > 0.5
+    escalations:
+      - { when: ofs_share_of_issue > 0.9, severity: high }
+    evidence: [ofs_share_of_issue, offer_for_sale_size, fresh_issue_size, total_issue_size]
+    rationale: >
+      Offer-for-sale proceeds go to the selling shareholders, not the company. An OFS-dominated IPO is
+      primarily an exit for existing investors or promoters and does not fund growth.
+    kb: offer-document/objects-of-the-offer
+    questions:
+      - Who are the selling shareholders, and at what cost did they acquire their shares?
+
+  - id: IPO_GCP_EXCEEDS_REGULATORY_CAP
+    title: General corporate purposes near or above the 25% ICDR cap
+    category: issue_structure
+    severity: medium
+    applies_to: [drhp, rhp]
+    scope: document
+    when: gcp_share_of_fresh_issue > 0.20
+    escalations:
+      - { when: gcp_share_of_fresh_issue > 0.25, severity: critical }
+    evidence: [gcp_share_of_fresh_issue, general_corporate_purposes, fresh_issue_size]
+    rationale: >
+      Regulation 7(2) of the ICDR Regulations limits general corporate purposes to 25% of gross proceeds. A large
+      unspecified allocation reduces accountability for the use of funds; above the cap it is non-compliant.
+    kb: offer-document/objects-of-the-offer
+
+  - id: IPO_VALUATION_PREMIUM_TO_PEERS
+    title: Offer priced at a large premium to listed peers
+    category: valuation
+    severity: medium
+    applies_to: [drhp, rhp]
+    scope: document
+    when: eps_diluted > 0 and issue_pe_premium_to_peers > 0.5
+    escalations:
+      - { when: issue_pe_premium_to_peers > 1, severity: high }
+    evidence: [issue_pe, peer_median_pe, issue_pe_premium_to_peers, revenue_growth, roe]
+    rationale: >
+      A P/E far above the peer median named in the Basis for Offer Price section needs to be justified by
+      clearly superior growth or returns; otherwise the upside for IPO investors is limited.
+    kb: offer-document/basis-for-offer-price
+
+  - id: IPO_LOSS_MAKING_ISSUER_PRICED_ON_EARNINGS
+    title: Issuer has negative earnings in the latest year
+    category: valuation
+    severity: high
+    applies_to: [drhp, rhp]
+    scope: document
+    when: eps_diluted <= 0
+    evidence: [eps_diluted, profit_after_tax]
+    rationale: >
+      With negative EPS the offer cannot be benchmarked on earnings and valuation rests on forward-looking
+      assumptions. Issuers without a three-year operating-profit track record list under ICDR Regulation 6(2),
+      which requires at least 75% of the offer to be allocated to qualified institutional buyers.
+    kb: offer-document/basis-for-offer-price
+
+  - id: IPO_PROMOTER_ACQUISITION_COST_LOW
+    title: Promoters acquired shares at a fraction of the offer price
+    category: issue_structure
+    severity: medium
+    applies_to: [drhp, rhp]
+    scope: document
+    when: promoter_cost_multiple > 10
+    evidence: [promoter_cost_multiple, price_band_upper, promoter_average_cost_per_share]
+    rationale: >
+      A very low acquisition cost relative to the offer price means selling promoters realise large gains, and
+      the gap should be weighed against what IPO investors are paying for the same shares.
+    kb: offer-document/capital-structure
+
+  - id: IPO_PROCEEDS_MAINLY_REPAY_DEBT
+    title: Fresh issue mainly used to repay borrowings
+    category: issue_structure
+    severity: low
+    applies_to: [drhp, rhp]
+    scope: document
+    when: debt_repayment_share_of_fresh_issue > 0.5
+    evidence: [debt_repayment_share_of_fresh_issue, objects_debt_repayment, debt_to_equity]
+    rationale: >
+      Deleveraging lowers finance costs and risk but does not add capacity; growth after listing has to come
+      from the existing asset base.
+    kb: offer-document/objects-of-the-offer
+
+  - id: IPO_NEGATIVE_OPERATING_CASH_FLOW
+    title: Negative operating cash flow in the track record
+    category: cash_flow
+    severity: high
+    applies_to: [drhp, rhp]
+    when: net_cash_from_operating_activities < 0
+    evidence: [net_cash_from_operating_activities, profit_after_tax, cfo_to_pat]
+    rationale: >
+      ICDR requires negative operating cash flows in the restated period to be disclosed as a risk factor. A
+      business that consumes cash from operations depends on external funding, which the offer may be
+      intended to provide.
+    kb: earnings-quality/cash-conversion
+
+  - id: IPO_CRIMINAL_PROCEEDINGS_AGAINST_PROMOTERS
+    title: Criminal proceedings outstanding against promoters
+    category: governance
+    severity: high
+    applies_to: [drhp, rhp]
+    scope: document
+    when: litigation_criminal_against_promoters > 0
+    evidence: [litigation_criminal_against_promoters]
+    rationale: >
+      Outstanding criminal proceedings against promoters are a governance and reputational risk and may affect
+      their ability to continue in management.
+    kb: offer-document/litigation
+
+  - id: IPO_LITIGATION_MATERIAL
+    title: Outstanding litigation material relative to net worth
+    category: governance
+    severity: high
+    applies_to: [drhp, rhp]
+    scope: document
+    when: litigation_to_net_worth > 0.10
+    evidence: [litigation_amount_against_company, total_equity, litigation_to_net_worth]
+    rationale: >
+      Litigation involving more than a tenth of net worth could materially affect the company's financial
+      position if decided adversely.
+    kb: offer-document/litigation
+
+  - id: IPO_LOW_POST_ISSUE_PROMOTER_HOLDING
+    title: Low promoter holding after the offer
+    category: issue_structure
+    severity: medium
+    applies_to: [drhp, rhp]
+    scope: document
+    when: promoter_holding_post_issue < 0.35
+    evidence: [promoter_holding_post_issue, promoter_holding_pre_issue, promoter_dilution]
+    rationale: >
+      A low post-issue promoter stake weakens alignment with minority shareholders, although it is common for
+      professionally managed, investor-backed companies.
+    kb: offer-document/capital-structure

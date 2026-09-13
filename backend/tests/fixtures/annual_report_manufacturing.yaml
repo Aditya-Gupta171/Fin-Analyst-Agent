@@ -1,0 +1,75 @@
+# Fictional company for engine tests. Statements are internally consistent (balance sheets balance, cash flows
+# reconcile, EPS matches profit / shares), with red flags deliberately planted in FY25:
+#   * trade receivables +55% against revenue +12%, while operating cash flow halves  -> WC_RECEIVABLES_OUTPACE_REVENUE
+#   * CFO / PAT = 0.30                                                                 -> EQ_CFO_PAT_DIVERGENCE
+#   * PAT +23% while CFO falls from 95 to 50                                           -> EQ_PROFIT_UP_CASH_DOWN
+#   * other income is 33% of PBT                                                       -> EQ_OTHER_INCOME_DEPENDENCE
+#   * contingent liabilities are 65% of net worth                                      -> GOV_CONTINGENT_LIABILITIES_LARGE
+# FY24 is deliberately just inside the receivables threshold (+30% vs +10%, a 20-point gap that does not exceed it).
+company:
+  name: Example Engineering Ltd
+  sector: manufacturing
+  nse_symbol: EXAMPLEENG
+document:
+  doc_type: annual_report
+  basis: consolidated
+  title: Annual Report FY2024-25 (fictional test data)
+
+facts:
+  # Statement of profit and loss (₹ crore)
+  revenue_from_operations: { FY23: 1000, FY24: 1100, FY25: 1232 }
+  other_income: { FY23: 20, FY24: 40, FY25: 75 }
+  total_income: { FY23: 1020, FY24: 1140, FY25: 1307 }
+  cost_of_materials_consumed: { FY23: 550, FY24: 600, FY25: 670 }
+  changes_in_inventories: { FY23: -10, FY24: -20, FY25: -25 }
+  employee_benefits_expense: { FY23: 120, FY24: 135, FY25: 160 }
+  finance_costs: { FY23: 30, FY24: 32, FY25: 38 }
+  depreciation_amortisation: { FY23: 40, FY24: 45, FY25: 50 }
+  other_expenses: { FY23: 150, FY24: 165, FY25: 190 }
+  total_expenses: { FY23: 880, FY24: 957, FY25: 1083 }
+  profit_before_tax: { FY23: 140, FY24: 183, FY25: 224 }
+  total_tax_expense: { FY23: 35, FY24: 46, FY25: 56 }
+  profit_after_tax: { FY23: 105, FY24: 137, FY25: 168 }
+  eps_basic: { FY23: 10.50, FY24: 13.70, FY25: 16.80 }
+  eps_diluted: { FY23: 10.50, FY24: 13.68, FY25: 16.75 }
+  face_value_per_share: { FY23: 2, FY24: 2, FY25: 2 }
+
+  # Balance sheet (₹ crore)
+  property_plant_equipment: { FY23: 600, FY24: 640, FY25: 700 }
+  capital_work_in_progress: { FY23: 50, FY24: 90, FY25: 150 }
+  total_non_current_assets: { FY23: 700, FY24: 785, FY25: 910 }
+  inventories: { FY23: 180, FY24: 210, FY25: 240 }
+  trade_receivables: { FY23: 200, FY24: 260, FY25: 403 }
+  cash_and_cash_equivalents: { FY23: 40, FY24: 45, FY25: 30 }
+  total_current_assets: { FY23: 500, FY24: 600, FY25: 765 }
+  total_assets: { FY23: 1200, FY24: 1385, FY25: 1675 }
+  equity_share_capital: { FY23: 20, FY24: 20, FY25: 20 }
+  other_equity: { FY23: 680, FY24: 797, FY25: 940 }
+  total_equity: { FY23: 700, FY24: 817, FY25: 960 }
+  borrowings_non_current: { FY23: 200, FY24: 230, FY25: 300 }
+  total_non_current_liabilities: { FY23: 220, FY24: 252, FY25: 325 }
+  borrowings_current: { FY23: 100, FY24: 110, FY25: 170 }
+  trade_payables: { FY23: 150, FY24: 170, FY25: 180 }
+  total_current_liabilities: { FY23: 280, FY24: 316, FY25: 390 }
+  total_liabilities: { FY23: 500, FY24: 568, FY25: 715 }
+  total_equity_and_liabilities: { FY23: 1200, FY24: 1385, FY25: 1675 }
+
+  # Cash flow statement (₹ crore; outflows negative)
+  net_cash_from_operating_activities: { FY23: 110, FY24: 95, FY25: 50 }
+  purchase_of_property_plant_equipment: { FY23: -90, FY24: -110, FY25: -130 }
+  net_cash_from_investing_activities: { FY23: -100, FY24: -115, FY25: -135 }
+  net_cash_from_financing_activities: { FY23: -5, FY24: 25, FY25: 70 }
+  net_change_in_cash: { FY23: 5, FY24: 5, FY25: -15 }
+  opening_cash_and_equivalents: { FY23: 35, FY24: 40, FY25: 45 }
+  closing_cash_and_equivalents: { FY23: 40, FY24: 45, FY25: 30 }
+
+  # Notes
+  contingent_liabilities: { FY24: 300, FY25: 620 }
+  related_party_revenue: { FY24: 90, FY25: 110 }
+
+document_facts:
+  auditor_opinion: unmodified
+  emphasis_of_matter: "no"
+  auditor_changed_during_period: "no"
+  promoter_holding: 0.62
+  promoter_shares_pledged: 0.0

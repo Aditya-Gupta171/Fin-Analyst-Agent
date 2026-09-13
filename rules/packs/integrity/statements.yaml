@@ -1,0 +1,136 @@
+# Internal-consistency checks. A failure means either an extraction problem or an inconsistency in the filing
+# itself; in both cases conclusions drawn from the affected numbers are unreliable.
+rules:
+  - id: INT_BALANCE_SHEET_DOES_NOT_BALANCE
+    title: Balance sheet does not balance
+    category: integrity
+    severity: high
+    period_kinds: [year, half_year, quarter, nine_months]
+    when: rel_diff(total_assets, total_equity_and_liabilities) > 0.002
+    evidence:
+      - total_assets
+      - total_equity_and_liabilities
+      - { expr: "rel_diff(total_assets, total_equity_and_liabilities)", label: Difference }
+    rationale: >
+      Total assets must equal total equity and liabilities. A gap larger than rounding points to a
+      mis-extracted line, a missing sub-total, or an error in the published statement, so ratios built on the
+      balance sheet should not be relied on until it is reconciled.
+    kb: integrity/statement-reconciliation
+
+  - id: INT_EQUITY_COMPONENTS
+    title: Equity components do not add up to total equity
+    category: integrity
+    severity: medium
+    period_kinds: [year, half_year]
+    when: rel_diff(total_equity, equity_share_capital + other_equity + non_controlling_interest) > 0.005
+    evidence:
+      - total_equity
+      - equity_share_capital
+      - other_equity
+    rationale: >
+      Total equity should equal share capital plus other equity (plus non-controlling interests in consolidated
+      statements). A mismatch usually means a component was missed during extraction.
+    kb: integrity/statement-reconciliation
+
+  - id: INT_PROFIT_BRIDGE
+    title: Profit after tax does not reconcile to PBT less tax
+    category: integrity
+    severity: medium
+    period_kinds: [year, half_year, quarter, nine_months]
+    when: rel_diff(profit_after_tax, profit_before_tax - coalesce(total_tax_expense, current_tax + deferred_tax)) > 0.01
+    evidence:
+      - profit_before_tax
+      - { expr: "coalesce(total_tax_expense, current_tax + deferred_tax)", label: Tax expense, unit: inr_crore }
+      - profit_after_tax
+    rationale: >
+      PAT should equal PBT less tax. Legitimate differences come from discontinued operations or share of profit
+      of associates presented after tax; anything else suggests a data problem.
+    kb: integrity/statement-reconciliation
+
+  - id: INT_TOTAL_INCOME
+    title: Total income does not equal revenue plus other income
+    category: integrity
+    severity: low
+    period_kinds: [year, half_year, quarter, nine_months]
+    when: rel_diff(total_income, revenue_from_operations + other_income) > 0.005
+    evidence: [total_income, revenue_from_operations, other_income]
+    rationale: >
+      Schedule III defines total income as revenue from operations plus other income; a gap indicates an
+      unmapped income line.
+    kb: integrity/statement-reconciliation
+
+  - id: INT_CASH_FLOW_SECTIONS
+    title: Cash flow sections do not sum to the net change in cash
+    category: integrity
+    severity: medium
+    period_kinds: [year, half_year]
+    when: >
+      rel_diff(net_cash_from_operating_activities + net_cash_from_investing_activities
+               + net_cash_from_financing_activities, net_change_in_cash) > 0.02
+    evidence:
+      - net_cash_from_operating_activities
+      - net_cash_from_investing_activities
+      - net_cash_from_financing_activities
+      - net_change_in_cash
+    rationale: >
+      Operating, investing and financing cash flows must add up to the net change in cash and cash equivalents.
+    kb: integrity/statement-reconciliation
+
+  - id: INT_CASH_ROLL_FORWARD
+    title: Opening cash plus net change does not reach closing cash
+    category: integrity
+    severity: low
+    period_kinds: [year, half_year]
+    when: rel_diff(opening_cash_and_equivalents + net_change_in_cash, closing_cash_and_equivalents) > 0.02
+    evidence: [opening_cash_and_equivalents, net_change_in_cash, closing_cash_and_equivalents]
+    rationale: >
+      Small gaps are normal (exchange differences on translation, cash acquired with subsidiaries). Large gaps
+      mean the cash flow statement has not been captured correctly.
+    kb: integrity/statement-reconciliation
+
+  - id: INT_CASH_FLOW_VS_BALANCE_SHEET_CASH
+    title: Closing cash differs between cash flow statement and balance sheet
+    category: integrity
+    severity: low
+    period_kinds: [year, half_year]
+    when: rel_diff(closing_cash_and_equivalents, cash_and_cash_equivalents) > 0.05
+    evidence: [closing_cash_and_equivalents, cash_and_cash_equivalents]
+    rationale: >
+      The cash flow statement often nets bank overdrafts against cash while the balance sheet does not. A
+      material, unexplained difference deserves a look at the reconciliation note.
+    kb: integrity/statement-reconciliation
+    questions:
+      - Does the difference relate to bank overdrafts, restricted cash or balances held for sale?
+
+  - id: INT_EPS_INCONSISTENT_WITH_PROFIT
+    title: Reported EPS inconsistent with profit and share capital
+    category: integrity
+    severity: medium
+    period_kinds: [year, quarter]
+    when: eps_basic > 0 and implied_eps > 0 and rel_diff(eps_basic, implied_eps) > 0.10
+    evidence:
+      - eps_basic
+      - implied_eps
+      - coalesce(paid_up_equity_share_capital, equity_share_capital)
+    rationale: >
+      Basic EPS should approximate profit attributable to owners divided by shares outstanding. A gap above 10%
+      points to a share issue, buyback, bonus or split during the period (weighted-average shares) or to an
+      error in the published EPS.
+    kb: integrity/eps-reconciliation
+    questions:
+      - Was there a change in share count during the period (issue, bonus, split, buyback, ESOP allotment)?
+
+  - id: INT_EPS_GROWTH_DIVERGES_FROM_PROFIT
+    title: EPS growth diverges from profit growth
+    category: integrity
+    severity: medium
+    period_kinds: [quarter, year]
+    when: profit_after_tax > 0 and prior(profit_after_tax) > 0 and abs(eps_growth - pat_growth) > 0.10
+    evidence: [eps_growth, pat_growth]
+    rationale: >
+      EPS and profit should move together unless the share count changed. A gap of more than 10 percentage
+      points means dilution (a fresh issue, ESOPs, conversion of warrants) or a buyback, which affects per-share
+      value for existing shareholders.
+    kb: integrity/eps-reconciliation
+    questions:
+      - How many shares were issued or bought back during the period?

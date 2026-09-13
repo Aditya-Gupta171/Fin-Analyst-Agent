@@ -1,0 +1,123 @@
+rules:
+  - id: EQ_CFO_PAT_DIVERGENCE
+    title: Reported profit is not converting into operating cash
+    category: earnings_quality
+    severity: high
+    applies_to: [annual_report, drhp, rhp]
+    when: profit_after_tax > 0 and cfo_to_pat < 0.5
+    escalations:
+      - { when: net_cash_from_operating_activities < 0, severity: critical }
+    evidence: [profit_after_tax, net_cash_from_operating_activities, cfo_to_pat, receivables_growth, dso]
+    rationale: >
+      Profit is an accounting measure; operating cash flow is harder to manage. When less than half of profit
+      shows up as operating cash, the gap is usually absorbed by receivables, inventory or other accruals. A
+      single year can reflect genuine growth investment, but a persistent gap is one of the most reliable early
+      signs of aggressive revenue recognition or collection trouble.
+    kb: earnings-quality/cash-conversion
+    questions:
+      - Which working-capital items absorbed operating cash, and are they expected to reverse?
+      - Have revenue recognition policies or customer credit terms changed?
+
+  - id: EQ_WEAK_THREE_YEAR_CASH_CONVERSION
+    title: Weak cash conversion over three years
+    category: earnings_quality
+    severity: high
+    applies_to: [annual_report, drhp, rhp]
+    when: trailing_sum(profit_after_tax, 3) > 0 and cumulative_cfo_to_pat_3y < 0.6
+    evidence: [cumulative_cfo_to_pat_3y, cfo_to_pat]
+    rationale: >
+      Over three years timing effects largely wash out. Cumulative operating cash flow well below cumulative
+      profit means profits are being retained as receivables, inventory or capitalised costs rather than cash.
+    kb: earnings-quality/cash-conversion
+    questions:
+      - What explains the structural gap between reported profit and operating cash over the track record?
+
+  - id: EQ_PROFIT_UP_CASH_DOWN
+    title: Profit rising while operating cash flow falls
+    category: earnings_quality
+    severity: high
+    applies_to: [annual_report, drhp, rhp]
+    when: >
+      pat_growth > 0.15 and profit_after_tax > 0
+      and net_cash_from_operating_activities < prior(net_cash_from_operating_activities)
+    evidence:
+      - pat_growth
+      - net_cash_from_operating_activities
+      - { expr: "prior(net_cash_from_operating_activities)", label: Operating cash flow (prior year), unit: inr_crore }
+    rationale: >
+      Earnings and cash moving in opposite directions is a classic divergence pattern. It often precedes
+      write-offs of receivables or inventory, or a restatement of revenue.
+    kb: earnings-quality/cash-conversion
+
+  - id: EQ_OTHER_INCOME_DEPENDENCE
+    title: Profit depends heavily on other income
+    category: earnings_quality
+    severity: medium
+    period_kinds: [year, quarter]
+    when: profit_before_tax > 0 and other_income > 0 and other_income_share_of_pbt > 0.30
+    escalations:
+      - { when: other_income_share_of_pbt > 0.5, severity: high }
+    evidence: [other_income, profit_before_tax, other_income_share_of_pbt, ebitda_margin]
+    rationale: >
+      Other income (treasury gains, interest, write-backs, foreign exchange gains) is usually less recurring
+      than operating profit. When it makes up a large part of PBT, the headline profit overstates what the
+      core business earns.
+    kb: earnings-quality/other-income
+    questions:
+      - What are the components of other income and how many are recurring?
+
+  - id: EQ_RECURRING_EXCEPTIONAL_ITEMS
+    title: Exceptional items reported year after year
+    category: earnings_quality
+    severity: medium
+    applies_to: [annual_report, drhp, rhp]
+    when: streak(abs(exceptional_items) > 0.01 * revenue_from_operations, 3)
+    evidence: [exceptional_items, exceptional_items_share_of_pbt]
+    rationale: >
+      Items that recur every year are not exceptional. Repeated use of the line can be a way of keeping ordinary
+      costs out of operating profit.
+    kb: earnings-quality/exceptional-items
+    questions:
+      - Why are these charges or gains classified as exceptional if they recur?
+
+  - id: EQ_EXCEPTIONAL_GAIN_DRIVES_PROFIT
+    title: Exceptional gain accounts for a large share of profit
+    category: earnings_quality
+    severity: medium
+    period_kinds: [year, quarter]
+    when: exceptional_items > 0 and profit_before_tax > 0 and exceptional_items_share_of_pbt > 0.25
+    escalations:
+      - { when: exceptional_items_share_of_pbt > 0.5, severity: high }
+    evidence: [exceptional_items, profit_before_tax, exceptional_items_share_of_pbt]
+    rationale: >
+      A one-off gain (asset sale, fair-value gain, reversal of provisions) inflates reported profit for the
+      period; growth and valuation should be judged on profit excluding it.
+    kb: earnings-quality/exceptional-items
+
+  - id: EQ_EFFECTIVE_TAX_RATE_UNUSUAL
+    title: Effective tax rate far from the statutory rate
+    category: earnings_quality
+    severity: low
+    applies_to: [annual_report, drhp, rhp]
+    when: profit_before_tax > 0 and (effective_tax_rate < 0.15 or effective_tax_rate > 0.40)
+    evidence: [effective_tax_rate, profit_before_tax]
+    rationale: >
+      Indian companies pay about 25.17% under section 115BAA or about 34.9% under the old regime. A rate far
+      outside that band can reflect tax holidays or SEZ benefits, unrecognised deferred tax on losses,
+      disallowed expenses, or profits that are not what they seem.
+    kb: earnings-quality/tax-rate
+    questions:
+      - What explains the gap between the effective and statutory tax rate, and is it sustainable?
+
+  - id: EQ_HIGH_ACCRUALS
+    title: High accruals relative to assets
+    category: earnings_quality
+    severity: medium
+    applies_to: [annual_report, drhp, rhp]
+    sectors_exclude: [financials]
+    when: accruals_ratio > cohort_pct(accruals_ratio, 90, 0.10)
+    evidence: [accruals_ratio, cfo_to_pat]
+    rationale: >
+      Earnings made up mostly of accruals rather than cash are less persistent; companies in the top decile of
+      accruals have historically been more likely to report lower future earnings.
+    kb: earnings-quality/accruals

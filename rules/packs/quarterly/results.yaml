@@ -1,0 +1,82 @@
+# Rules specific to quarterly results filed under SEBI LODR Regulation 33.
+rules:
+  - id: QTR_REVENUE_DECLINE_YOY
+    title: Revenue fell sharply against the same quarter last year
+    category: growth
+    severity: high
+    applies_to: [quarterly_result]
+    period_kinds: [quarter]
+    when: revenue_growth < -0.10
+    evidence: [revenue_growth, revenue_from_operations, { expr: "prior(revenue_from_operations)", label: Revenue (same quarter last year), unit: inr_crore }]
+    rationale: >
+      A double-digit year-on-year fall removes seasonality from the comparison and signals demand loss, pricing
+      pressure or execution problems.
+    kb: growth/revenue-growth
+
+  - id: QTR_MARGIN_COLLAPSE_QOQ
+    title: Operating margin fell sharply from the previous quarter
+    category: profitability
+    severity: high
+    applies_to: [quarterly_result]
+    period_kinds: [quarter]
+    sectors_exclude: [financials]
+    when: ebitda_margin - seq(ebitda_margin) < -0.05
+    evidence: [ebitda_margin, { expr: "seq(ebitda_margin)", label: EBITDA margin (previous quarter), unit: ratio }, employee_cost_ratio]
+    rationale: >
+      A 500 basis point sequential drop is too large to be noise. Check for one-off costs, input-price spikes,
+      or a change in revenue mix.
+    kb: profitability/margins
+
+  - id: QTR_SWING_TO_LOSS
+    title: Swung to a loss from a profit a year earlier
+    category: profitability
+    severity: high
+    applies_to: [quarterly_result]
+    period_kinds: [quarter]
+    when: profit_after_tax < 0 and prior(profit_after_tax) > 0
+    evidence: [profit_after_tax, { expr: "prior(profit_after_tax)", label: PAT (same quarter last year), unit: inr_crore }]
+    rationale: >
+      Moving from profit to loss against the same quarter a year ago is a material deterioration that the
+      management commentary must explain.
+    kb: profitability/margins
+
+  - id: QTR_OTHER_INCOME_SPIKE
+    title: Other income spiked and props up profit
+    category: earnings_quality
+    severity: medium
+    applies_to: [quarterly_result]
+    period_kinds: [quarter]
+    when: other_income > 2 * prior(other_income) and profit_before_tax > 0 and other_income_share_of_pbt > 0.25
+    evidence: [other_income, { expr: "prior(other_income)", label: Other income (same quarter last year), unit: inr_crore }, other_income_share_of_pbt]
+    rationale: >
+      A sudden jump in other income can mask weakness in operating profit for the quarter; treasury gains and
+      write-backs rarely repeat.
+    kb: earnings-quality/other-income
+
+  - id: QTR_EXCEPTIONAL_ITEM_MATERIAL
+    title: Material exceptional item in the quarter
+    category: earnings_quality
+    severity: medium
+    applies_to: [quarterly_result]
+    period_kinds: [quarter]
+    when: profit_before_tax != 0 and abs(exceptional_items_share_of_pbt) > 0.20
+    evidence: [exceptional_items, profit_before_tax, exceptional_items_share_of_pbt]
+    rationale: >
+      An exceptional item above a fifth of PBT changes the reading of the quarter; profit growth should be
+      assessed before and after it.
+    kb: earnings-quality/exceptional-items
+
+  - id: QTR_TAX_RATE_SWING
+    title: Effective tax rate moved sharply
+    category: earnings_quality
+    severity: low
+    applies_to: [quarterly_result]
+    period_kinds: [quarter]
+    when: >
+      profit_before_tax > 0 and prior(profit_before_tax) > 0
+      and abs(effective_tax_rate - prior(effective_tax_rate)) > 0.10
+    evidence: [effective_tax_rate, { expr: "prior(effective_tax_rate)", label: Effective tax rate (same quarter last year), unit: ratio }]
+    rationale: >
+      A swing of more than 10 percentage points in the tax rate can flatter or depress net profit growth
+      independently of the business; deferred tax reversals and regime changes are common causes.
+    kb: earnings-quality/tax-rate

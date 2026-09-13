@@ -1,0 +1,200 @@
+rules:
+  # Working capital
+  - id: WC_RECEIVABLES_OUTPACE_REVENUE
+    title: Receivables growing much faster than revenue
+    category: working_capital
+    severity: high
+    applies_to: [annual_report, drhp, rhp]
+    sectors_exclude: [financials]
+    when: receivables_growth - revenue_growth > 0.20 and trade_receivables > 0.05 * revenue_from_operations
+    escalations:
+      - { when: cfo_to_pat < 0.5, severity: critical }
+    evidence: [receivables_growth, revenue_growth, dso, cfo_to_pat]
+    rationale: >
+      When receivables grow well ahead of sales, the company is either extending longer credit to win business,
+      struggling to collect, or recognising revenue before it is earned (including channel stuffing near the
+      year end). Combined with weak cash conversion it is a strong warning sign.
+    kb: working-capital/receivables
+    questions:
+      - Were credit terms extended to key customers during the year?
+      - What is the ageing of receivables, and how much is overdue beyond 180 days?
+
+  - id: WC_DSO_ELEVATED
+    title: Collection period high and lengthening
+    category: working_capital
+    severity: medium
+    applies_to: [annual_report, drhp, rhp]
+    sectors_exclude: [financials]
+    when: dso > cohort_pct(dso, 90, 120) and dso > prior(dso)
+    evidence: [dso, { expr: "prior(dso)", label: DSO (prior year), unit: days }, receivables_growth]
+    rationale: >
+      A collection period above most peers that is still rising ties up cash and increases the risk of
+      bad-debt write-offs, particularly with government or related-party customers.
+    kb: working-capital/receivables
+    questions:
+      - How much of receivables is due from government bodies or related parties?
+
+  - id: WC_INVENTORY_BUILDUP
+    title: Inventory building faster than revenue
+    category: working_capital
+    severity: medium
+    applies_to: [annual_report, drhp, rhp]
+    sectors_exclude: [financials, it_services, consumer_internet]
+    when: inventory_growth - revenue_growth > 0.25 and inventories > 0.05 * revenue_from_operations
+    evidence: [inventory_growth, revenue_growth, dio]
+    rationale: >
+      Inventory piling up ahead of sales can mean weakening demand, obsolete stock that has not been written
+      down, or production pushed into inventory to absorb fixed overheads and flatter margins.
+    kb: working-capital/inventory
+    questions:
+      - Is the build-up planned (new capacity, pre-season stocking) or unsold finished goods?
+
+  - id: WC_UNBILLED_REVENUE_HIGH
+    title: Large and rising unbilled revenue
+    category: working_capital
+    severity: medium
+    applies_to: [annual_report, drhp, rhp]
+    sectors_exclude: [financials]
+    when: unbilled_revenue_share > 0.40 and unbilled_revenue_share > prior(unbilled_revenue_share)
+    evidence: [unbilled_revenue_share, unbilled_revenue, trade_receivables]
+    rationale: >
+      Unbilled revenue is recognised before the customer has been invoiced, so it rests on management's
+      estimate of progress. A growing share relative to billed receivables deserves scrutiny in project-based
+      businesses (EPC, IT services, defence).
+    kb: working-capital/unbilled-revenue
+
+  - id: WC_PAYABLES_STRETCHED
+    title: Suppliers being paid much more slowly
+    category: working_capital
+    severity: medium
+    applies_to: [annual_report, drhp, rhp]
+    sectors_exclude: [financials, it_services, consumer_internet]
+    when: dpo - prior(dpo) > 30
+    evidence: [dpo, { expr: "prior(dpo)", label: DPO (prior year), unit: days }, cfo_to_pat]
+    rationale: >
+      Stretching payables flatters operating cash flow for a period but cannot be repeated indefinitely, and can
+      signal liquidity stress.
+    kb: working-capital/payables
+
+  # Leverage and liquidity
+  - id: LEV_HIGH_DEBT_TO_EQUITY
+    title: Leverage high relative to peers
+    category: leverage
+    severity: medium
+    sectors_exclude: [financials]
+    when: debt_to_equity > cohort_pct(debt_to_equity, 90, 1.5)
+    escalations:
+      - { when: debt_to_equity > 3, severity: high }
+    evidence: [debt_to_equity, total_debt, total_equity]
+    rationale: >
+      High balance-sheet leverage leaves little room to absorb a downturn and makes equity holders junior to a
+      large claim.
+    kb: leverage/debt
+
+  - id: LEV_WEAK_INTEREST_COVERAGE
+    title: Operating profit barely covers interest
+    category: leverage
+    severity: high
+    period_kinds: [year, quarter]
+    sectors_exclude: [financials]
+    when: finance_costs > 0 and interest_coverage < 2.5
+    escalations:
+      - { when: interest_coverage < 1, severity: critical }
+    evidence: [interest_coverage, ebit, finance_costs]
+    rationale: >
+      Coverage below about 2.5x means a modest fall in operating profit would put debt servicing at risk; below
+      1x the company is not earning its interest bill from operations.
+    kb: leverage/interest-burden
+
+  - id: LEV_NET_DEBT_TO_EBITDA_HIGH
+    title: Net debt high relative to operating earnings
+    category: leverage
+    severity: high
+    sectors_exclude: [financials]
+    when: (ebitda > 0 and net_debt_to_ebitda > 3.5) or (ebitda <= 0 and net_debt > 0)
+    evidence: [net_debt_to_ebitda, net_debt, ebitda]
+    rationale: >
+      More than roughly 3.5 years of EBITDA to repay net debt is a level at which lenders typically tighten
+      covenants; with negative EBITDA any net debt is a solvency concern.
+    kb: leverage/debt
+
+  - id: LEV_DEBT_FUNDED_GROWTH
+    title: Borrowings rising sharply while free cash flow is negative
+    category: leverage
+    severity: medium
+    applies_to: [annual_report, drhp, rhp]
+    sectors_exclude: [financials]
+    when: borrowings_growth > 0.5 and total_debt > 0.25 * total_equity and free_cash_flow < 0
+    evidence: [borrowings_growth, free_cash_flow, debt_to_equity]
+    rationale: >
+      Growth financed by new debt rather than internal cash generation increases risk if the investment does not
+      earn its cost of capital.
+    kb: leverage/debt
+
+  - id: LIQ_CURRENT_RATIO_BELOW_ONE
+    title: Current liabilities exceed current assets
+    category: liquidity
+    severity: medium
+    period_kinds: [year, half_year]
+    sectors_exclude: [financials]
+    when: current_ratio < 1
+    evidence: [current_ratio, quick_ratio]
+    rationale: >
+      Obligations due within a year exceed assets expected to turn into cash in that time. Normal for some
+      business models (FMCG, retail with negative working capital), a liquidity risk for most others.
+    kb: leverage/liquidity
+
+  # Profitability and capital allocation
+  - id: PRF_MARGIN_COMPRESSION
+    title: Operating margin contracted sharply
+    category: profitability
+    severity: medium
+    sectors_exclude: [financials]
+    when: ebitda_margin - prior(ebitda_margin) < -0.04
+    escalations:
+      - { when: ebitda_margin - prior(ebitda_margin) < -0.08, severity: high }
+    evidence: [ebitda_margin, { expr: "prior(ebitda_margin)", label: EBITDA margin (prior year), unit: ratio }, employee_cost_ratio]
+    rationale: >
+      A fall of more than 400 basis points in EBITDA margin points to pricing pressure, input-cost inflation or
+      loss of operating leverage, and needs a credible explanation.
+    kb: profitability/margins
+
+  - id: PRF_EMPLOYEE_COST_OUTPACING_REVENUE
+    title: Employee costs growing much faster than revenue
+    category: profitability
+    severity: medium
+    when: employee_cost_growth - revenue_growth > 0.15 and employee_cost_ratio > 0.10
+    evidence: [employee_cost_growth, revenue_growth, employee_cost_ratio]
+    rationale: >
+      Hiring or wage inflation ahead of revenue compresses margins unless the capacity is monetised soon; in
+      people-intensive businesses it is often the first sign of utilisation falling.
+    kb: profitability/cost-structure
+
+  - id: PRF_LOSS_MAKING
+    title: Company reported a net loss
+    category: profitability
+    severity: high
+    applies_to: [annual_report, drhp, rhp]
+    when: profit_after_tax < 0
+    escalations:
+      - { when: "streak(profit_after_tax < 0, 3)", severity: critical }
+    evidence: [profit_after_tax, ebitda, free_cash_flow]
+    rationale: >
+      Losses erode net worth and, if sustained, require fresh capital. Consistent losses across the track record
+      put the burden on a clear, evidenced path to profitability.
+    kb: profitability/margins
+
+  - id: CAP_CWIP_BUILDUP
+    title: Capital work-in-progress large and growing
+    category: cash_flow
+    severity: medium
+    applies_to: [annual_report, drhp, rhp]
+    sectors_exclude: [financials]
+    when: cwip_to_ppe > 0.5 and capital_work_in_progress > prior(capital_work_in_progress)
+    evidence: [cwip_to_ppe, capital_work_in_progress, property_plant_equipment]
+    rationale: >
+      Large CWIP that keeps growing can mean delayed or stalled projects, or costs (including interest) being
+      capitalised instead of expensed, which inflates current profit.
+    kb: cash-flow/capex
+    questions:
+      - What is the expected commissioning date of the projects in CWIP, and how much interest was capitalised?
