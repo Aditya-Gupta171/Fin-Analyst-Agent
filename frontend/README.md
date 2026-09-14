@@ -2,7 +2,8 @@
 
 Next.js (App Router) web app for the [Self-Learning AI Financial Analyst Agent](../README.md) — document
 library, analysis reports with an evidence viewer and reasoning trace, and a learning console. See the
-main README's "Running the API" and "Running the frontend" sections for the full setup.
+main README's [Quickstart](../README.md#quickstart) and [Frontend](../README.md#frontend) sections for the
+full setup.
 
 ```bash
 npm install
