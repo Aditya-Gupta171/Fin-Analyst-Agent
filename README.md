@@ -46,7 +46,7 @@ cd fin-analyst-agent
 cd backend
 python -m venv .venv
 .venv/Scripts/python -m pip install -e ".[dev,embeddings]"   # macOS / Linux: .venv/bin/python
-.venv/Scripts/python -m pytest                               # 347 tests, offline — see Testing
+.venv/Scripts/python -m pytest                               # 353 tests, offline — see Testing
 
 echo "GROQ_API_KEY=gsk_..." > ../.env                        # repo root, not backend/ — never commit it
 
@@ -236,8 +236,10 @@ explanations** of a red flag, and lets the agent fetch the document a fired rule
 
 Open questions go through hybrid retrieval ([`retriever.py`](backend/app/knowledge/retriever.py)): metadata
 filters (document type, sector, section kind) → BM25 with finance abbreviation expansion (DSO, CFO, OFS, GCP…) and
-local dense embeddings (`bge-small`, via fastembed/ONNX, since Groq serves no embedding models) → reciprocal rank
-fusion → cross-encoder rerank of the top 8 → learned per-chunk utility boost from the learning service.
+local dense embeddings (`snowflake-arctic-embed-m`, via fastembed/ONNX, since Groq serves no embedding models) →
+reciprocal rank fusion → cross-encoder rerank of the top 8 (`ms-marco-MiniLM-L-12`) → learned per-chunk utility
+boost from the learning service. Document embeddings are cached under `data/embedding_cache/`, keyed by the model
+and the exact chunk texts, so a restart with an unchanged knowledge base loads it in well under a second.
 
 Measured on [`evals/retrieval.yaml`](evals/retrieval.yaml): 64 queries phrased as the agent asks them, many
 paraphrased away from the documents' wording. Scores are document-level; run `python -m app.knowledge.evaluation`.
@@ -245,9 +247,32 @@ paraphrased away from the documents' wording. Scores are document-level; run `py
 | Configuration | Recall@1 | Recall@3 | MRR |
 | --- | --- | --- | --- |
 | Lexical (BM25) | 84.4% | 95.3% | 0.905 |
-| Dense (bge-small) | 73.4% | 87.5% | 0.816 |
-| Hybrid (RRF) | 89.1% | 95.3% | 0.932 |
-| **Hybrid + rerank (default)** | **93.8%** | **98.4%** | **0.961** |
+| Dense (arctic-embed-m) | 90.6% | 96.9% | 0.939 |
+| Hybrid (RRF) | 93.8% | 98.4% | 0.962 |
+| **Hybrid + rerank (default)** | **98.4%** | **100%** | **0.992** |
+
+The models were chosen by an ablation over fastembed's local models (same queries, same pipeline):
+
+| Embedder (hybrid + MiniLM-L6 rerank) | Recall@1 | Recall@3 | Embed corpus (CPU) |
+| --- | --- | --- | --- |
+| bge-small-en-v1.5 (previous default) | 93.8% | 98.4% | ~15 s |
+| bge-base-en-v1.5 + query instruction | 93.8% | 100% | ~44 s |
+| arctic-embed-m, *no* query instruction | 60.9% | 89.1% | ~48 s |
+| **arctic-embed-m + query instruction** | **96.9%** | **100%** | ~48 s (cached after first run) |
+
+| Reranker (on arctic-embed-m) | Recall@1 | Recall@3 | ms/query |
+| --- | --- | --- | --- |
+| none | 93.8% | 98.4% | ~25 |
+| jina-reranker-v1-tiny / -turbo | 92.2% / 93.8% | 100% | ~520 / ~700 |
+| ms-marco-MiniLM-L-6 | 96.9% | 100% | ~840 |
+| **ms-marco-MiniLM-L-12 (default)** | **98.4%** | **100%** | ~1,100–1,300 |
+
+Retrieval models like arctic-embed and bge expect an instruction in front of the *query* ("Represent this sentence
+for searching relevant passages: "), which fastembed does not add; `app/knowledge/embeddings.py` applies it per
+model, and leaving it out drops arctic-embed-m from 91% to 31% dense recall@1. The extra reranking latency is
+immaterial here: the agent runs only a handful of knowledge searches per filing, next to minutes of LLM calls. With
+64 queries, one query is ~1.6 points, so the gain over the previous default is five queries at rank 1 — a clear
+direction rather than a precise margin.
 
 Reranking all 20 fused candidates cost about 2 s per query on CPU with no quality gain over reranking the top 8
 (about 0.6 s). Caveat: the documents and the queries were written by the same author, which likely flatters
@@ -415,7 +440,7 @@ render.yaml          optional Render Blueprint (same setup, pre-filled)
 
 ```bash
 cd backend
-.venv/Scripts/python -m pytest        # 347 tests
+.venv/Scripts/python -m pytest        # 353 tests
 .venv/Scripts/ruff check app tests
 ```
 
