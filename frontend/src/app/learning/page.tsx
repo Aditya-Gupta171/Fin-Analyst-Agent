@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
 import { SeverityBadge } from "@/components/badges";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -37,6 +38,7 @@ function ReliabilitySection() {
     <section className="flex flex-col gap-3">
       <h2 className="text-lg font-medium">Rule reliability</h2>
       {query.isPending && <Skeleton className="h-24 w-full" />}
+      {query.isError && <LoadError error={query.error} />}
       {query.data && query.data.length === 0 && (
         <p className="text-sm text-muted-foreground">No feedback recorded yet.</p>
       )}
@@ -78,6 +80,7 @@ function CandidatesSection() {
     <section className="flex flex-col gap-3">
       <h2 className="text-lg font-medium">Candidate rules</h2>
       {query.isPending && <Skeleton className="h-24 w-full" />}
+      {query.isError && <LoadError error={query.error} />}
       {query.data && query.data.length === 0 && (
         <p className="text-sm text-muted-foreground">
           No candidates yet — the agent proposes one when it finds a pattern no active rule covers.
@@ -90,12 +93,21 @@ function CandidatesSection() {
   );
 }
 
+function LoadError({ error }: { error: Error }) {
+  return (
+    <Alert variant="destructive">
+      <AlertTitle>Could not load this section</AlertTitle>
+      <AlertDescription>{error.message}</AlertDescription>
+    </Alert>
+  );
+}
+
 function CandidateCard({ candidate }: { candidate: RuleCandidateOut }) {
   const queryClient = useQueryClient();
   const definition = candidate.definition as unknown as CandidateDefinition;
   const backtestResult = candidate.backtest_result as unknown as BacktestResult | null;
 
-  const invalidate = () => queryClient.invalidateQueries({ queryKey: ["rules", "candidates"] });
+  const invalidate = () => queryClient.invalidateQueries({ queryKey: ["rules"] });
 
   const backtest = useMutation({
     mutationFn: async () =>
@@ -150,8 +162,8 @@ function CandidateCard({ candidate }: { candidate: RuleCandidateOut }) {
             </p>
             {backtestResult.errors.length > 0 && (
               <ul className="mt-1 list-inside list-disc text-destructive">
-                {backtestResult.errors.map((error) => (
-                  <li key={error}>{error}</li>
+                {backtestResult.errors.map((error, i) => (
+                  <li key={i}>{error}</li>
                 ))}
               </ul>
             )}
@@ -163,7 +175,15 @@ function CandidateCard({ candidate }: { candidate: RuleCandidateOut }) {
             <Button size="sm" variant="outline" disabled={backtest.isPending} onClick={() => backtest.mutate()}>
               {backtest.isPending ? "Backtesting..." : "Backtest"}
             </Button>
-            <Button size="sm" disabled={decide.isPending} onClick={() => decide.mutate("approve")}>
+            <Button
+              size="sm"
+              disabled={decide.isPending}
+              onClick={() => {
+                const warning = backtestResult ? "" : "\n\nIt has not been backtested yet.";
+                const message = `Approve "${definition.title}"? It is written to rules/packs/learned/proposed.yaml and fires on every analysis after a restart.${warning}`;
+                if (window.confirm(message)) decide.mutate("approve");
+              }}
+            >
               Approve
             </Button>
             <Button size="sm" variant="destructive" disabled={decide.isPending} onClick={() => decide.mutate("reject")}>

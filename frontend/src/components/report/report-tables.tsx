@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 import { SeverityBadge } from "@/components/badges";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -30,8 +32,11 @@ export function Scorecard({ scorecard }: { scorecard: AreaScore[] }) {
   );
 }
 
-export function MetricsTable({ metrics }: { metrics: MetricRow[] }) {
-  const periods = Array.from(new Set(metrics.flatMap((m) => Object.keys(m.values)))).sort();
+/** `order` is the report's own period list, oldest first — a plain string sort would put "9MFY25"
+ * before "FY23" and "Q1FY25" after "H1FY26". */
+export function MetricsTable({ metrics, order }: { metrics: MetricRow[]; order: string[] }) {
+  const present = new Set(metrics.flatMap((m) => Object.keys(m.values)));
+  const periods = [...order.filter((p) => present.has(p)), ...[...present].filter((p) => !order.includes(p))];
 
   return (
     <div className="rounded-lg border">
@@ -127,8 +132,8 @@ export function CandidateRules({ candidates }: { candidates: CandidateRule[] }) 
             <code className="rounded bg-muted px-2 py-1 font-mono text-xs">{candidate.when}</code>
             {candidate.validation_errors.length > 0 && (
               <ul className="list-inside list-disc text-xs text-destructive">
-                {candidate.validation_errors.map((error) => (
-                  <li key={error}>{error}</li>
+                {candidate.validation_errors.map((error, i) => (
+                  <li key={i}>{error}</li>
                 ))}
               </ul>
             )}
@@ -136,7 +141,11 @@ export function CandidateRules({ candidates }: { candidates: CandidateRule[] }) 
         </Card>
       ))}
       <p className="text-xs text-muted-foreground">
-        Review these on the <a href="/learning" className="underline">Learning</a> console.
+        Review these on the{" "}
+        <Link href="/learning" className="underline">
+          Learning
+        </Link>{" "}
+        console.
       </p>
     </div>
   );

@@ -523,7 +523,7 @@ export interface components {
              * Decision
              * @enum {string}
              */
-            decision: "accept" | "revise" | "reject";
+            decision: "accept" | "revise" | "reject" | "unreviewed";
             /** Reasons */
             reasons: string;
         };

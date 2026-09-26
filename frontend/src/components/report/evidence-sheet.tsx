@@ -65,16 +65,18 @@ function PdfPagePreview({ documentId, page }: { documentId: string; page: number
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    let cancelled = false;
     const canvas = canvasRef.current;
     if (!canvas) return;
+    const controller = new AbortController();
     setError(null);
-    renderPdfPage(documentFileUrl(documentId), page, canvas).catch((err: unknown) => {
-      if (!cancelled) setError(err instanceof Error ? err.message : "Could not render the page");
-    });
-    return () => {
-      cancelled = true;
-    };
+    renderPdfPage(documentFileUrl(documentId), page, canvas, { signal: controller.signal }).catch(
+      (err: unknown) => {
+        if (!controller.signal.aborted) {
+          setError(err instanceof Error ? err.message : "Could not render the page");
+        }
+      },
+    );
+    return () => controller.abort();
   }, [documentId, page]);
 
   return (

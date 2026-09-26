@@ -73,7 +73,7 @@ export function ReportView({
         <TabsContent value="scorecard" className="flex flex-col gap-6 pt-4">
           <Scorecard scorecard={report.scorecard} />
           <IntegrityChecks checks={report.integrity} />
-          <MetricsTable metrics={report.metrics} />
+          <MetricsTable metrics={report.metrics} order={report.periods} />
           <DataGaps gaps={report.data_gaps} />
         </TabsContent>
         <TabsContent value="trace" className="pt-4">
@@ -92,8 +92,8 @@ function ListCard({ title, items }: { title: string; items: string[] }) {
     <div className="rounded-lg border p-4">
       <h3 className="mb-2 text-sm font-semibold">{title}</h3>
       <ul className="list-inside list-disc space-y-1 text-sm text-muted-foreground">
-        {items.map((item) => (
-          <li key={item}>{item}</li>
+        {items.map((item, i) => (
+          <li key={i}>{item}</li>
         ))}
       </ul>
     </div>

@@ -35,6 +35,7 @@ export function FindingCard({
       ),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["analyses", analysisId, "findings"] });
+      queryClient.invalidateQueries({ queryKey: ["rules", "reliability"] });
       toast.success("Feedback recorded");
     },
     onError: (error) => toast.error(error instanceof ApiError ? error.message : "Could not record feedback"),
@@ -103,11 +104,16 @@ export function FindingCard({
             </ul>
           </div>
         )}
-        {finding.critique && (
-          <p className="text-xs text-muted-foreground italic">
-            Critic: {finding.critique.decision} — {finding.critique.reasons}
-          </p>
-        )}
+        {finding.critique &&
+          (finding.critique.decision === "unreviewed" ? (
+            <p className="text-xs font-medium text-amber-700 dark:text-amber-400">
+              Not reviewed by the critic — {finding.critique.reasons}
+            </p>
+          ) : (
+            <p className="text-xs text-muted-foreground italic">
+              Critic: {finding.critique.decision} — {finding.critique.reasons}
+            </p>
+          ))}
       </CardContent>
     </Card>
   );
@@ -118,8 +124,8 @@ function Detail({ title, items }: { title: string; items: string[] }) {
     <div>
       <div className="mb-1 text-xs tracking-wide text-muted-foreground uppercase">{title}</div>
       <ul className="list-inside list-disc space-y-0.5">
-        {items.map((item) => (
-          <li key={item}>{item}</li>
+        {items.map((item, i) => (
+          <li key={i}>{item}</li>
         ))}
       </ul>
     </div>

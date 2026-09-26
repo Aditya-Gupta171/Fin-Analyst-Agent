@@ -34,7 +34,7 @@ export function formatDateTime(iso: string): string {
 export function formatSector(sector: string): string {
   return sector
     .split("_")
-    .map((word) => word[0].toUpperCase() + word.slice(1))
+    .map((word) => titleCase(word))
     .join(" ");
 }
 
@@ -43,5 +43,5 @@ export function formatDocType(docType: string): string {
 }
 
 export function titleCase(value: string): string {
-  return value[0].toUpperCase() + value.slice(1);
+  return value ? value[0].toUpperCase() + value.slice(1) : value;
 }

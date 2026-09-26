@@ -30,16 +30,26 @@ export async function getPageCount(url: string): Promise<number> {
   return doc.numPages;
 }
 
+/** Renders `pageNumber` onto `canvas`; `signal` cancels it, so a quick page change can't have two
+ * renders drawing on the same canvas at once (pdf.js rejects that). */
 export async function renderPdfPage(
   url: string,
   pageNumber: number,
   canvas: HTMLCanvasElement,
-  scale = 1.4,
+  { scale = 1.4, signal }: { scale?: number; signal?: AbortSignal } = {},
 ): Promise<void> {
   const doc = await loadDocument(url);
   const page = await doc.getPage(pageNumber);
+  if (signal?.aborted) return;
   const viewport = page.getViewport({ scale });
   canvas.width = viewport.width;
   canvas.height = viewport.height;
-  await page.render({ canvas, viewport }).promise;
+  const task = page.render({ canvas, viewport });
+  signal?.addEventListener("abort", () => task.cancel(), { once: true });
+  try {
+    await task.promise;
+  } catch (err) {
+    if (signal?.aborted) return; // cancelled on purpose
+    throw err;
+  }
 }
