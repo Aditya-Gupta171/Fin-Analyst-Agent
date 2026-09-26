@@ -24,7 +24,7 @@ from app.jobs.progress import ProgressStore
 from app.jobs.queue import JobQueue
 from app.knowledge.base import KnowledgeBase
 from app.llm.gateway import Gateway, build_gateway
-from app.paths import KNOWLEDGE_DIR, RULES_DIR
+from app.paths import EMBEDDING_CACHE_DIR, KNOWLEDGE_DIR, RULES_DIR
 from app.settings import Settings, get_settings
 
 _UNSET: Any = object()
@@ -89,7 +89,8 @@ def _load_knowledge_base(catalog: Catalog) -> KnowledgeBase | None:
     else:
         from app.knowledge.embeddings import FastEmbedEmbedder, FastEmbedReranker
 
-        embedder, reranker = FastEmbedEmbedder(), FastEmbedReranker()
+        embedder = FastEmbedEmbedder(vector_cache_dir=EMBEDDING_CACHE_DIR)
+        reranker = FastEmbedReranker()
     return KnowledgeBase.load(KNOWLEDGE_DIR, catalog, embedder=embedder, reranker=reranker)
 
 

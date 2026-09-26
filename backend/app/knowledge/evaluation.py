@@ -22,7 +22,7 @@ from app.engine.catalog import Catalog
 from app.knowledge.base import KnowledgeBase
 from app.knowledge.documents import SectionKind
 from app.knowledge.retriever import HybridRetriever, SearchFilters
-from app.paths import KNOWLEDGE_DIR, REPO_ROOT, RULES_DIR
+from app.paths import EMBEDDING_CACHE_DIR, KNOWLEDGE_DIR, REPO_ROOT, RULES_DIR
 
 EVAL_SET = REPO_ROOT / "evals" / "retrieval.yaml"
 DEPTH = 10
@@ -47,7 +47,7 @@ class EvalReport:
 
     def row(self) -> str:
         return (
-            f"| {self.mode:<24} | {self.recall_at_1:6.1%} | {self.recall_at_3:6.1%} "
+            f"| {self.mode:<34} | {self.recall_at_1:6.1%} | {self.recall_at_3:6.1%} "
             f"| {self.recall_at_5:6.1%} | {self.mrr:5.3f} | {self.seconds * 1000 / self.queries:7.1f} |"
         )
 
@@ -96,17 +96,18 @@ def main() -> None:
     if not args.lexical_only:
         from app.knowledge.embeddings import FastEmbedEmbedder, FastEmbedReranker
 
-        embedder, reranker = FastEmbedEmbedder(), FastEmbedReranker()
+        embedder, reranker = FastEmbedEmbedder(vector_cache_dir=EMBEDDING_CACHE_DIR), FastEmbedReranker()
+        dense_name = f"dense ({embedder.name.split('/')[-1]})"
         dense = HybridRetriever(base.chunks, embedder=embedder, use_lexical=False)
         configurations += [
-            ("dense (bge-small)", dense),
+            (dense_name, dense),
             ("hybrid (RRF)", HybridRetriever(base.chunks, embedder=embedder)),
             ("hybrid + rerank", HybridRetriever(base.chunks, embedder=embedder, reranker=reranker)),
         ]
 
     print(f"{len(queries)} queries, {len(base.documents)} documents, {len(base.chunks)} chunks\n")
-    print("| configuration            |   R@1  |   R@3  |   R@5  |  MRR  | ms/query |")
-    print("| ------------------------ | ------ | ------ | ------ | ----- | -------- |")
+    print("| configuration                      |   R@1  |   R@3  |   R@5  |  MRR  | ms/query |")
+    print("| ---------------------------------- | ------ | ------ | ------ | ----- | -------- |")
     reports = [evaluate(retriever, queries, name) for name, retriever in configurations]
     for report in reports:
         print(report.row())
