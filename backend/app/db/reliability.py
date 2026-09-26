@@ -29,19 +29,29 @@ class RuleReliability(BaseModel):
     score: float
 
 
-async def rule_reliabilities(session: AsyncSession) -> dict[str, RuleReliability]:
-    """One entry per rule that has at least one piece of feedback, keyed by rule id."""
+async def latest_verdicts(session: AsyncSession, column) -> list[tuple[str, list[str]]]:
+    """``(verdict, finding.<column>)`` for every finding with feedback, counting only its latest verdict —
+    an analyst who changes their mind, or clicks the same button twice, must not be counted twice."""
     rows = (
         await session.execute(
-            select(Feedback.verdict, FindingRow.rule_ids).join(
+            select(Feedback.analysis_id, Feedback.finding_id, Feedback.verdict, column)
+            .join(
                 FindingRow,
                 and_(
                     FindingRow.analysis_id == Feedback.analysis_id,
                     FindingRow.finding_id == Feedback.finding_id,
                 ),
             )
+            .order_by(Feedback.created_at)
         )
     ).all()
+    latest = {(analysis_id, finding_id): (verdict, ids) for analysis_id, finding_id, verdict, ids in rows}
+    return list(latest.values())
+
+
+async def rule_reliabilities(session: AsyncSession) -> dict[str, RuleReliability]:
+    """One entry per rule that has at least one piece of feedback, keyed by rule id."""
+    rows = await latest_verdicts(session, FindingRow.rule_ids)
     counts: dict[str, list[int]] = {}
     for verdict, rule_ids in rows:
         for rule_id in rule_ids:

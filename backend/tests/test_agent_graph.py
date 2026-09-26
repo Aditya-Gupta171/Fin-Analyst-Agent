@@ -11,6 +11,7 @@ import pytest
 from app.agent.graph import (
     AgentContext,
     AgentState,
+    _plan,
     accepted,
     deterministic_plan,
     rule_problems,
@@ -30,6 +31,7 @@ from app.agent.schemas import (
     Verdict,
 )
 from app.analysis.evidence import EvidenceIndex
+from app.domain.enums import Severity
 from app.engine.catalog import Catalog
 from app.engine.pipeline import EngineResult, run_engine
 from app.llm.types import LLMError
@@ -199,8 +201,7 @@ def test_run_agent_produces_an_accepted_and_a_reviewed_out_finding(
         ],
         immaterial_rules=[
             ImmaterialRule(rule_id=r.rule_id, reason="Not material for this company.")
-            for r in result.fired_rules
-            if r.rule_id not in (receivables_rule.rule_id, other_income_rule.rule_id)
+            for r in _dismissible(result, exclude=(receivables_rule.rule_id, other_income_rule.rule_id))
         ],
     )
     finding_1 = FindingDraft(
@@ -264,9 +265,7 @@ def test_run_agent_produces_an_accepted_and_a_reviewed_out_finding(
     assert state["summary"].headline == "Receivables risk dominates the quarter"
     # the immaterial rules from the plan carry through as dismissed
     assert {d.rule_id for d in state["dismissed"]} >= {
-        r.rule_id
-        for r in result.fired_rules
-        if r.rule_id not in (receivables_rule.rule_id, other_income_rule.rule_id)
+        r.rule_id for r in _dismissible(result, exclude=(receivables_rule.rule_id, other_income_rule.rule_id))
     }
 
 
@@ -408,3 +407,29 @@ def test_analyst_can_request_context_before_answering(
 
     assert "E1" not in state.get("drafts", {})
     assert any(rule.rule_id in d.rule_id for d in state["dismissed"])
+
+
+def _dismissible(result, exclude=()):
+    """Fired rules the planner may call immaterial: below high severity and not integrity checks."""
+    return [
+        r
+        for r in result.fired_rules
+        if r.rule_id not in exclude and r.severity.rank < Severity.HIGH.rank and r.pack != "integrity"
+    ]
+
+
+def test_the_planner_cannot_dismiss_a_high_severity_rule(result, catalog, index) -> None:
+    serious = next(r for r in result.fired_rules if r.severity.rank >= Severity.HIGH.rank)
+    bad_plan = Plan(
+        company_context="",
+        enquiries=[],
+        immaterial_rules=[ImmaterialRule(rule_id=serious.rule_id, reason="Not material.")],
+    )
+    gateway = FakeGateway({"plan": [bad_plan]})
+    context = AgentContext(result, catalog, index, kb=None, gateway=gateway)
+
+    state = _plan(context, {"notes": [], "dismissed": []})
+
+    # the only scripted plan is rejected, so the planner falls back to grouping every fired rule
+    assert "planner fell back" in state["notes"][0]
+    assert serious.rule_id in {r for e in state["plan"].enquiries for r in e.rule_ids}

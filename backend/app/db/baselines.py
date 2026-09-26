@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from decimal import Decimal
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import CohortBaseline
@@ -24,9 +24,15 @@ from app.engine.baselines import Cohort, InMemoryBaselines
 from app.engine.pipeline import EngineResult
 
 
-async def load_baselines(session: AsyncSession, sector: Sector) -> InMemoryBaselines:
-    """Every stored sample for ``sector``, across all size bands and period kinds."""
-    rows = (await session.scalars(select(CohortBaseline).where(CohortBaseline.sector == sector.value))).all()
+async def load_baselines(
+    session: AsyncSession, sector: Sector, *, exclude_document: str | None = None
+) -> InMemoryBaselines:
+    """Every stored sample for ``sector``, across all size bands and period kinds — except those of
+    ``exclude_document``, so a filing is never ranked against its own earlier values."""
+    query = select(CohortBaseline).where(CohortBaseline.sector == sector.value)
+    if exclude_document is not None:
+        query = query.where(CohortBaseline.document_id != exclude_document)
+    rows = (await session.scalars(query)).all()
     baselines = InMemoryBaselines()
     for row in rows:
         cohort = Cohort(
@@ -39,7 +45,10 @@ async def load_baselines(session: AsyncSession, sector: Sector) -> InMemoryBasel
 
 
 async def record_baselines(session: AsyncSession, result: EngineResult, document_id: str) -> None:
-    """Add every metric value from a finished analysis as a new sample for its cohort."""
+    """Store every metric value from a finished analysis as this document's samples for its cohort.
+
+    Replaces the document's previous samples, so re-analysing a filing doesn't count it twice."""
+    await session.execute(delete(CohortBaseline).where(CohortBaseline.document_id == document_id))
     if result.size_bucket is None:
         return  # no revenue to classify a size band from; nothing to file this filing's metrics under
     fiscal_year_end_month = result.document.fiscal_year_end_month

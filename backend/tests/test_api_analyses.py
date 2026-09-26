@@ -121,3 +121,70 @@ def test_trigger_analysis_for_unknown_document_is_404(database_url: str, catalog
 def test_get_unknown_analysis_is_404(database_url: str, catalog: Catalog) -> None:
     with TestClient(_app(database_url, catalog)) as client:
         assert client.get("/analyses/does-not-exist").status_code == 404
+
+
+def test_each_report_traces_only_its_own_llm_calls(
+    database_url: str, document_id: str, catalog: Catalog
+) -> None:
+    gateway = FakeGateway(
+        script={
+            "plan": [Plan(company_context="", enquiries=[], immaterial_rules=[])],
+            "compose": [
+                Summary(
+                    headline="Nothing further to add",
+                    overall_risk="low",
+                    executive_summary="No agent-authored findings this run.",
+                    strengths=[],
+                    concerns=[],
+                )
+            ],
+            "propose": [Proposals(rules=[])],
+        }
+    )
+    app = build_app(Settings(database_url=database_url), catalog=catalog, kb=None, gateway=gateway,
+                    eager_jobs=True)
+    with TestClient(app) as client:
+        reports = []
+        for _ in range(2):
+            analysis_id = client.post(f"/documents/{document_id}/analyses").json()["id"]
+            reports.append(client.get(f"/analyses/{analysis_id}").json()["report"])
+
+    first, second = reports
+    assert first["trace"]
+    assert len(second["trace"]) == len(first["trace"])  # not first + second
+    assert second["provenance"]["token_usage"] == first["provenance"]["token_usage"]
+
+
+def test_a_job_that_fails_before_the_engine_runs_is_marked_failed(
+    database_url: str, catalog: Catalog
+) -> None:
+    import asyncio
+
+    from app.db.engine import make_engine, make_session_factory
+    from app.db.models import Analysis
+    from app.jobs.progress import ProgressStore
+    from app.jobs.runner import run_analysis
+    from tests.api_seed import seed_analysis
+
+    analysis_id = seed_analysis(database_url, "no-such-document", status="queued")
+
+    async def _run() -> Analysis:
+        engine = make_engine(database_url)
+        factory = make_session_factory(engine)
+        await run_analysis(
+            analysis_id,
+            "no-such-document",
+            session_factory=factory,
+            catalog=catalog,
+            kb=None,
+            gateway=None,
+            progress=ProgressStore(),
+        )
+        async with factory() as session:
+            analysis = await session.get(Analysis, analysis_id)
+        await engine.dispose()
+        return analysis
+
+    analysis = asyncio.run(_run())
+    assert analysis.status == "failed"
+    assert "no-such-document" in analysis.error_message

@@ -49,9 +49,9 @@ def test_dismisses_produce_a_negative_boost(database_url: str) -> None:
 
 
 def test_the_boost_is_clipped_to_a_sane_range(database_url: str) -> None:
-    seed_finding(database_url, ANALYSIS_ID, "A1", chunk_ids=["kb-chunk-1"])
-    for _ in range(50):
-        seed_feedback(database_url, ANALYSIS_ID, "A1", "confirm")
+    for n in range(10):
+        seed_finding(database_url, ANALYSIS_ID, f"A{n}", chunk_ids=["kb-chunk-1"])
+        seed_feedback(database_url, ANALYSIS_ID, f"A{n}", "confirm")
 
     boost = _boosts(database_url)["kb-chunk-1"]
     assert boost == pytest.approx(1.0)

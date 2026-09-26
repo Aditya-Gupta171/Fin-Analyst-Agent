@@ -115,3 +115,33 @@ def test_rejecting_an_unknown_candidate_is_404(client_and_candidate: tuple[TestC
 def test_reliability_is_empty_with_no_feedback_yet(client_and_candidate: tuple[TestClient, str]) -> None:
     client, _ = client_and_candidate
     assert client.get("/rules/reliability").json() == []
+
+
+def test_a_decided_candidate_cannot_be_decided_again(
+    client_and_candidate: tuple[TestClient, str], rules_dir: Path
+) -> None:
+    client, candidate_id = client_and_candidate
+    rejected = client.post(f"/rules/candidates/{candidate_id}/decision", json={"decision": "reject"})
+    assert rejected.status_code == 200
+
+    response = client.post(f"/rules/candidates/{candidate_id}/decision", json={"decision": "approve"})
+    assert response.status_code == 409
+    assert not (rules_dir / "packs" / "learned").exists()
+
+
+def test_a_candidate_that_failed_validation_cannot_be_approved(
+    tmp_path: Path, rules_dir: Path, catalog: Catalog
+) -> None:
+    database_url = f"sqlite+aiosqlite:///{tmp_path / 'test.db'}"
+    document_id = seed_document(database_url, load_fixture("annual_report_manufacturing"))
+    candidate_id = seed_rule_candidate(
+        database_url, seed_analysis(database_url, document_id), validation_errors=["unknown name: foo"]
+    )
+    app = build_app(Settings(database_url=database_url, rules_dir=rules_dir), catalog=catalog, kb=None,
+                    gateway=None, eager_jobs=True)
+    with TestClient(app) as client:
+        response = client.post(f"/rules/candidates/{candidate_id}/decision", json={"decision": "approve"})
+        assert response.status_code == 422
+        assert "unknown name: foo" in response.text
+        assert client.get("/rules/candidates").json()[0]["status"] == "candidate"
+    assert not (rules_dir / "packs" / "learned").exists()

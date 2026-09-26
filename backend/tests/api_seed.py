@@ -58,7 +58,11 @@ def seed_analysis(database_url: str, document_id: str, *, status: str = "succeed
 
 
 def seed_rule_candidate(
-    database_url: str, source_analysis_id: str, *, rule_id: str = "candidate_rule"
+    database_url: str,
+    source_analysis_id: str,
+    *,
+    rule_id: str = "candidate_rule",
+    validation_errors: list[str] = (),
 ) -> str:
     async def _seed() -> str:
         engine = make_engine(database_url)
@@ -74,6 +78,7 @@ def seed_rule_candidate(
                     "when": "revenue_from_operations > 0",
                     "rationale": "Seeded directly for API testing.",
                     "evidence": ["revenue_from_operations"],
+                    "validation_errors": list(validation_errors),
                 },
                 source_analysis_id=source_analysis_id,
             )

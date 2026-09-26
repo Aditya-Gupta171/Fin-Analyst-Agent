@@ -7,10 +7,10 @@ a ``boosts`` mapping since step 2, and its own module docstring says the learnin
 
 from __future__ import annotations
 
-from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models import Feedback, FindingRow
+from app.db.models import FindingRow
+from app.db.reliability import latest_verdicts
 
 _CONFIRM_WEIGHT = 0.2
 _DISMISS_WEIGHT = 0.1
@@ -20,17 +20,7 @@ _MAX_BOOST = 1.0
 
 async def chunk_boosts(session: AsyncSession) -> dict[str, float]:
     """One entry per knowledge chunk cited by at least one finding with feedback."""
-    rows = (
-        await session.execute(
-            select(Feedback.verdict, FindingRow.chunk_ids).join(
-                FindingRow,
-                and_(
-                    FindingRow.analysis_id == Feedback.analysis_id,
-                    FindingRow.finding_id == Feedback.finding_id,
-                ),
-            )
-        )
-    ).all()
+    rows = await latest_verdicts(session, FindingRow.chunk_ids)
     counts: dict[str, list[int]] = {}
     for verdict, chunk_ids in rows:
         for chunk_id in chunk_ids:

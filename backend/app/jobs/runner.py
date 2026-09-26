@@ -10,6 +10,7 @@ thread returns.
 from __future__ import annotations
 
 import asyncio
+import logging
 from datetime import UTC, datetime
 
 from sqlalchemy.ext.asyncio import async_sessionmaker
@@ -27,6 +28,8 @@ from app.engine.pipeline import EngineResult, run_engine
 from app.jobs.progress import ProgressStore
 from app.knowledge.base import KnowledgeBase
 from app.llm.gateway import Gateway
+
+logger = logging.getLogger(__name__)
 
 
 def _run_sync(
@@ -67,33 +70,66 @@ async def run_analysis(
     gateway: Gateway | None,
     progress: ProgressStore,
 ) -> None:
+    """Run one job; whatever fails — loading, the engine/agent, or persisting — the analysis always ends
+    ``succeeded`` or ``failed``, never stuck ``queued``/``running`` with an SSE stream that never closes."""
+    try:
+        await _run_analysis(
+            analysis_id,
+            document_id,
+            session_factory=session_factory,
+            catalog=catalog,
+            kb=kb,
+            gateway=gateway,
+            progress=progress,
+        )
+    except Exception as exc:
+        logger.exception("analysis %s failed", analysis_id)
+        await _mark_failed(session_factory, analysis_id, exc)
+    finally:
+        progress.clear(analysis_id)
+
+
+async def _mark_failed(session_factory: async_sessionmaker, analysis_id: str, exc: Exception) -> None:
+    try:
+        async with session_factory() as session:
+            analysis = await session.get(Analysis, analysis_id)
+            if analysis is not None:
+                analysis.status = "failed"
+                analysis.error_message = f"{type(exc).__name__}: {exc}"
+                analysis.finished_at = datetime.now(UTC)
+                await session.commit()
+    except Exception:
+        logger.exception("could not mark analysis %s as failed", analysis_id)
+
+
+async def _run_analysis(
+    analysis_id: str,
+    document_id: str,
+    *,
+    session_factory: async_sessionmaker,
+    catalog: Catalog,
+    kb: KnowledgeBase | None,
+    gateway: Gateway | None,
+    progress: ProgressStore,
+) -> None:
     async with session_factory() as session:
-        document = await session.get(Document, document_id)
         analysis = await session.get(Analysis, analysis_id)
-        if document is None or analysis is None:
+        if analysis is None:
             return
+        document = await session.get(Document, document_id)
+        if document is None:
+            raise LookupError(f"document {document_id} no longer exists")
         dataset = FinancialDataset.model_validate(document.dataset_json)
-        baselines = await load_baselines(session, dataset.company.sector)
+        baselines = await load_baselines(session, dataset.company.sector, exclude_document=document_id)
         reliability = scores(await rule_reliabilities(session))
         boosts = await chunk_boosts(session)
         analysis.status = "running"
         analysis.started_at = datetime.now(UTC)
         await session.commit()
 
-    try:
-        result, report = await asyncio.to_thread(
-            _run_sync, dataset, catalog, kb, gateway, baselines, reliability, boosts, progress, analysis_id
-        )
-    except Exception as exc:
-        async with session_factory() as session:
-            analysis = await session.get(Analysis, analysis_id)
-            if analysis is not None:
-                analysis.status = "failed"
-                analysis.error_message = str(exc)
-                analysis.finished_at = datetime.now(UTC)
-                await session.commit()
-        progress.clear(analysis_id)
-        return
+    result, report = await asyncio.to_thread(
+        _run_sync, dataset, catalog, kb, gateway, baselines, reliability, boosts, progress, analysis_id
+    )
 
     async with session_factory() as session:
         analysis = await session.get(Analysis, analysis_id)
@@ -128,4 +164,3 @@ async def run_analysis(
             for candidate in report.candidate_rules
         )
         await session.commit()
-    progress.clear(analysis_id)

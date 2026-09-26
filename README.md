@@ -46,7 +46,7 @@ cd fin-analyst-agent
 cd backend
 python -m venv .venv
 .venv/Scripts/python -m pip install -e ".[dev,embeddings]"   # macOS / Linux: .venv/bin/python
-.venv/Scripts/python -m pytest                               # 327 tests, offline — see Testing
+.venv/Scripts/python -m pytest                               # 336 tests, offline — see Testing
 
 echo "GROQ_API_KEY=gsk_..." > ../.env                        # repo root, not backend/ — never commit it
 
@@ -410,7 +410,7 @@ render.yaml          optional Render Blueprint (same setup, pre-filled)
 
 ```bash
 cd backend
-.venv/Scripts/python -m pytest        # 327 tests
+.venv/Scripts/python -m pytest        # 336 tests
 .venv/Scripts/ruff check app tests
 ```
 

@@ -79,9 +79,20 @@ class RuleEngine:
     def __init__(self, evaluator: Evaluator) -> None:
         self.evaluator = evaluator
         self.catalog: Catalog = evaluator.catalog
+        self.errors: dict[str, str] = {}
 
     def run(self, rules: list[RuleDef]) -> list[RuleResult]:
-        results = [result for rule in rules if (result := self.evaluate(rule)) is not None]
+        """Evaluate every rule; one that errors (say, a learned rule whose condition isn't true/false) is
+        skipped and recorded in ``errors`` rather than failing the whole analysis."""
+        results = []
+        for rule in rules:
+            try:
+                result = self.evaluate(rule)
+            except EvaluationError as exc:
+                self.errors[rule.id] = str(exc)
+                continue
+            if result is not None:
+                results.append(result)
         return sorted(results, key=lambda r: (not r.fired, -r.severity.rank, r.rule_id))
 
     def evaluate(self, rule: RuleDef) -> RuleResult | None:

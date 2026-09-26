@@ -32,6 +32,7 @@ from app.agent.schemas import (
 )
 from app.agent.tools import Toolbox
 from app.analysis.evidence import EvidenceIndex, check_prose, figures_in
+from app.domain.enums import Severity
 from app.engine.catalog import Catalog
 from app.engine.expressions import FUNCTIONS, ExpressionError, parse_expression
 from app.engine.factsheet import build_fact_sheet
@@ -148,6 +149,18 @@ def _plan(context: AgentContext, state: AgentState) -> AgentState:
             f"immaterial rule {r.rule_id} did not fire"
             for r in plan.immaterial_rules
             if r.rule_id not in context.fired_ids
+        ]
+        fired = {rule.rule_id: rule for rule in context.result.fired_rules}
+        problems += [
+            f"{r.rule_id} is {fired[r.rule_id].severity.value} severity and cannot be dismissed as"
+            " immaterial; investigate it in an enquiry"
+            for r in plan.immaterial_rules
+            if r.rule_id in fired and fired[r.rule_id].severity.rank >= Severity.HIGH.rank
+        ]
+        problems += [
+            f"{r.rule_id} is an integrity check and cannot be dismissed as immaterial"
+            for r in plan.immaterial_rules
+            if r.rule_id in fired and fired[r.rule_id].pack == "integrity"
         ]
         assigned: dict[str, str] = {}
         for enquiry in plan.enquiries:

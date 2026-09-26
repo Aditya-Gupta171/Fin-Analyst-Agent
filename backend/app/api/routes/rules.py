@@ -50,6 +50,13 @@ async def decide_candidate(
     row = await session.get(RuleVersion, candidate_id)
     if row is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "candidate rule not found")
+    if row.status != "candidate":
+        raise HTTPException(status.HTTP_409_CONFLICT, f"candidate rule was already {row.status}")
+    if body.decision == "approve" and row.definition_json.get("validation_errors"):
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            "candidate rule failed validation: " + "; ".join(row.definition_json["validation_errors"]),
+        )
     if body.decision == "approve":
         try:
             promote_rule(row.definition_json, rules_dir=state.settings.rules_dir)

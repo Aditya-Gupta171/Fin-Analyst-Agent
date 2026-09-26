@@ -95,6 +95,12 @@ def run_engine(
     size = size_bucket(clean)
     evaluator = Evaluator(clean, catalog, size=size, baselines=baselines)
     anchor = evaluator.anchor
+    engine = RuleEngine(evaluator)
+    rules = engine.run(catalog.active_rules(packs))
+    issues += [
+        DatasetIssue(level="error", ref=f"rule:{rule_id}", message=f"rule could not be evaluated: {message}")
+        for rule_id, message in engine.errors.items()
+    ]
 
     return EngineResult(
         catalog_version=catalog.version,
@@ -106,7 +112,7 @@ def run_engine(
         dataset_issues=issues,
         facts=[_fact_record(fact, catalog) for fact in clean.facts],
         metrics=_metrics(evaluator),
-        rules=RuleEngine(evaluator).run(catalog.active_rules(packs)),
+        rules=rules,
         anomalies=detect_anomalies(evaluator, anchor),
     )
 

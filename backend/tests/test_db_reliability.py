@@ -38,9 +38,9 @@ def test_a_rule_with_no_feedback_is_absent(database_url: str) -> None:
 
 
 def test_confirms_raise_the_score_above_the_default(database_url: str) -> None:
-    seed_finding(database_url, ANALYSIS_ID, "A1", rule_ids=["RULE_X"])
-    for _ in range(5):
-        seed_feedback(database_url, ANALYSIS_ID, "A1", "confirm")
+    for n in range(5):
+        seed_finding(database_url, ANALYSIS_ID, f"A{n}", rule_ids=["RULE_X"])
+        seed_feedback(database_url, ANALYSIS_ID, f"A{n}", "confirm")
 
     result = _reliabilities(database_url)
     assert result["RULE_X"].confirms == 5
@@ -49,9 +49,9 @@ def test_confirms_raise_the_score_above_the_default(database_url: str) -> None:
 
 
 def test_dismisses_lower_the_score_below_the_default(database_url: str) -> None:
-    seed_finding(database_url, ANALYSIS_ID, "A1", rule_ids=["RULE_X"])
-    for _ in range(5):
-        seed_feedback(database_url, ANALYSIS_ID, "A1", "dismiss")
+    for n in range(5):
+        seed_finding(database_url, ANALYSIS_ID, f"A{n}", rule_ids=["RULE_X"])
+        seed_feedback(database_url, ANALYSIS_ID, f"A{n}", "dismiss")
 
     result = _reliabilities(database_url)
     assert result["RULE_X"].score < RULE_CONFIDENCE
@@ -72,3 +72,13 @@ def test_scores_helper_flattens_to_a_plain_mapping(database_url: str) -> None:
 
     flattened = scores(_reliabilities(database_url))
     assert flattened == {"RULE_X": _reliabilities(database_url)["RULE_X"].score}
+
+
+def test_only_the_latest_verdict_on_a_finding_counts(database_url: str) -> None:
+    seed_finding(database_url, ANALYSIS_ID, "A1", rule_ids=["RULE_X"])
+    for _ in range(3):
+        seed_feedback(database_url, ANALYSIS_ID, "A1", "confirm")  # repeated clicks
+    seed_feedback(database_url, ANALYSIS_ID, "A1", "dismiss")  # then the analyst changes their mind
+
+    result = _reliabilities(database_url)
+    assert (result["RULE_X"].confirms, result["RULE_X"].dismisses) == (0, 1)

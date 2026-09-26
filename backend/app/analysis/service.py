@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 import uuid
 from collections.abc import Callable, Mapping
 from datetime import UTC, datetime
@@ -78,6 +79,9 @@ def build_report(
     notes: list[str] = []
     state: AgentState = {}
     if gateway is not None:
+        # The app shares one gateway (and its client's budget/cache) across jobs; give this report its own
+        # call log so its trace and token usage cover this analysis only, even with jobs running concurrently.
+        gateway = dataclasses.replace(gateway, calls=[])
         context = AgentContext(
             result,
             catalog,
