@@ -48,7 +48,10 @@ def build_app(
         resolved_kb = _load_knowledge_base(resolved_catalog) if kb is _UNSET else kb
         resolved_gateway = build_gateway(settings) if gateway is _UNSET else gateway
         engine = make_engine(settings.database_url)
-        await create_all(engine)
+        if engine.dialect.name == "sqlite":
+            # zero-setup local default; Postgres schema is owned by Alembic (`alembic upgrade head`) so it
+            # can't drift from the migrations or end up with tables but no alembic_version stamp
+            await create_all(engine)
         session_factory = make_session_factory(engine)
         await _reconcile_interrupted_jobs(session_factory)
         app.state.app_state = AppState(

@@ -54,7 +54,10 @@ def test_upload_ingests_a_real_filing_and_the_document_is_then_listable_and_fetc
     raw = client.get(f"/documents/{document_id}/file")
     assert raw.status_code == 200
     assert raw.content == content
-    assert raw.headers["content-type"] == "application/xml"
+    # only PDFs render inline; anything else downloads, so uploaded bytes can never run as a page here
+    assert raw.headers["content-type"] == "application/octet-stream"
+    assert raw.headers["content-disposition"] == "attachment"
+    assert raw.headers["x-content-type-options"] == "nosniff"
 
 
 def test_upload_rejects_a_file_no_parser_understands(client: TestClient) -> None:
@@ -69,3 +72,41 @@ def test_get_unknown_document_is_404(client: TestClient) -> None:
 
 def test_get_unknown_document_file_is_404(client: TestClient) -> None:
     assert client.get("/documents/does-not-exist/file").status_code == 404
+
+
+def test_upload_larger_than_the_limit_is_refused(tmp_path: Path, catalog: Catalog) -> None:
+    settings = Settings(database_url=f"sqlite+aiosqlite:///{tmp_path / 'test.db'}", max_upload_mb=1)
+    app = build_app(settings, catalog=catalog, kb=None, gateway=None, eager_jobs=True)
+    with TestClient(app) as client:
+        big = b"<" + b" " * (2 * 1024 * 1024)
+        response = client.post("/documents", files={"file": ("big.xml", big, "application/xml")})
+    assert response.status_code == 413
+
+
+@pytest.fixture
+def keyed_client(tmp_path: Path, catalog: Catalog) -> Iterator[TestClient]:
+    settings = Settings(database_url=f"sqlite+aiosqlite:///{tmp_path / 'test.db'}", api_key="s3cret")
+    app = build_app(settings, catalog=catalog, kb=None, gateway=None, eager_jobs=True)
+    with TestClient(app) as test_client:
+        yield test_client
+
+
+def _upload(client: TestClient, headers: dict | None = None):
+    return client.post(
+        "/documents",
+        files={"file": ("nocil.xml", XBRL_FIXTURE.read_bytes(), "application/xml")},
+        headers=headers or {},
+    )
+
+
+def test_with_an_api_key_mutating_requests_need_it(keyed_client: TestClient) -> None:
+    assert _upload(keyed_client).status_code == 401
+    assert _upload(keyed_client, {"Authorization": "Bearer wrong"}).status_code == 401
+    assert _upload(keyed_client, {"Authorization": "Bearer s3cret"}).status_code == 201
+
+
+def test_with_an_api_key_reads_stay_open(keyed_client: TestClient) -> None:
+    # EventSource (live progress) and the PDF viewer can't send an Authorization header
+    document_id = _upload(keyed_client, {"Authorization": "Bearer s3cret"}).json()["document"]["id"]
+    assert keyed_client.get("/documents").status_code == 200
+    assert keyed_client.get(f"/documents/{document_id}/file").status_code == 200

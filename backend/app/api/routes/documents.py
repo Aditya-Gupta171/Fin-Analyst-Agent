@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import asyncio
 from datetime import date
 from typing import Annotated
 
 from fastapi import APIRouter, File, Form, HTTPException, Response, UploadFile, status
 from sqlalchemy import select
+from sqlalchemy.orm import defer
 
 from app.api.deps import AppStateDep, RequireApiKey, SessionDep
 from app.api.schemas import DocumentDetail, DocumentSummary, DocumentUploadResponse, IngestionWarning
@@ -26,10 +28,11 @@ async def upload_document(
     sector: Annotated[Sector, Form()] = Sector.OTHER,
     source_url: Annotated[str | None, Form()] = None,
 ) -> DocumentUploadResponse:
-    content = await file.read()
+    content = await _read_limited(file, state.settings.max_upload_mb * 1024 * 1024)
     try:
-        result = ingest(
-            content, state.catalog, filename=file.filename or "", sector=sector, source_url=source_url
+        # PDF parsing is CPU-bound and can take seconds; keep it off the event loop serving other requests
+        result = await asyncio.to_thread(
+            ingest, content, state.catalog, filename=file.filename or "", sector=sector, source_url=source_url
         )
     except UnsupportedDocument as exc:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(exc)) from exc
@@ -48,7 +51,7 @@ async def upload_document(
         fiscal_year_end_month=dataset.document.fiscal_year_end_month,
         restated=dataset.document.restated,
         original_filename=file.filename or "upload",
-        content_type=file.content_type or "application/octet-stream",
+        content_type="application/pdf" if content.startswith(b"%PDF") else "application/xml",
         file_bytes=content,
         dataset_json=dataset.model_dump(mode="json"),
     )
@@ -64,7 +67,8 @@ async def upload_document(
 
 @router.get("", response_model=list[DocumentSummary])
 async def list_documents(session: SessionDep) -> list[DocumentSummary]:
-    rows = (await session.scalars(select(Document).order_by(Document.created_at.desc()))).all()
+    stmt = select(Document).options(defer(Document.file_bytes)).order_by(Document.created_at.desc())
+    rows = (await session.scalars(stmt)).all()
     return [_summary(row, FinancialDataset.model_validate(row.dataset_json)) for row in rows]
 
 
@@ -84,7 +88,29 @@ async def get_document_file(document_id: str, session: SessionDep) -> Response:
     row = await session.get(Document, document_id)
     if row is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "document not found")
-    return Response(content=row.file_bytes, media_type=row.content_type)
+    # Only a PDF is rendered inline (the evidence viewer needs it); anything else downloads, and nosniff
+    # stops a browser from reinterpreting uploaded bytes as HTML/script served from this origin.
+    inline = row.content_type == "application/pdf"
+    return Response(
+        content=row.file_bytes,
+        media_type="application/pdf" if inline else "application/octet-stream",
+        headers={
+            "Content-Disposition": "inline" if inline else "attachment",
+            "X-Content-Type-Options": "nosniff",
+        },
+    )
+
+
+async def _read_limited(file: UploadFile, limit: int) -> bytes:
+    chunks, size = [], 0
+    while chunk := await file.read(1024 * 1024):
+        size += len(chunk)
+        if size > limit:
+            raise HTTPException(
+                status.HTTP_413_CONTENT_TOO_LARGE, f"file is larger than {limit // (1024 * 1024)} MB"
+            )
+        chunks.append(chunk)
+    return b"".join(chunks)
 
 
 def _summary(row: Document, dataset: FinancialDataset) -> DocumentSummary:

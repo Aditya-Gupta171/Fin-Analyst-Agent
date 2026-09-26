@@ -106,6 +106,8 @@ def _sse(payload: dict) -> str:
 
 @router.get("/analyses/{analysis_id}/findings", response_model=list[FindingOut])
 async def list_findings(analysis_id: str, session: SessionDep) -> list[FindingOut]:
+    if await session.get(Analysis, analysis_id) is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "analysis not found")
     rows = (await session.scalars(select(FindingRow).where(FindingRow.analysis_id == analysis_id))).all()
     return [_finding_out(row) for row in rows]
 

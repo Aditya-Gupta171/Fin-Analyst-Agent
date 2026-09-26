@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from collections.abc import Iterable
+from collections.abc import Collection, Iterable
 from decimal import Decimal
 
 from app.analysis.report import EvidenceItem
@@ -60,7 +60,9 @@ class EvidenceIndex:
     def render(self, template: str) -> str:
         return render(template, self.registry).text
 
-    def link_figures(self, text: str, skip: set[str], preferred: Iterable[str] = ()) -> str:
+    def link_figures(
+        self, text: str, skip: set[str], preferred: Iterable[str] = (), scope: Collection[str] | None = None
+    ) -> str:
         """Replace figures written in prose with the reference whose value they state, when exactly one does.
 
         A model sometimes copies "19.2%" instead of writing {{m:ebitda_margin@FY25}}. If that figure matches
@@ -68,6 +70,10 @@ class EvidenceIndex:
         replaced by the reference, so the rendered text is unchanged and the number is verified. Ambiguous or
         unmatched figures are left for the guardrail to reject. Figures in ``skip`` (quoted regulatory
         thresholds) are left alone.
+
+        ``scope`` limits candidates to the references the model was actually shown: a figure it typed can
+        only have been copied from one of those, so matching it against some unrelated value elsewhere in
+        the filing that happens to be equal would attach the wrong citation to a correct-looking number.
         """
         if self._by_figure is None:
             self._by_figure = {}
@@ -82,6 +88,8 @@ class EvidenceIndex:
             if key is None or _normalise(figure) in skip:
                 return figure
             candidates = self._by_figure.get(key, [])
+            if scope is not None:
+                candidates = [ref for ref in candidates if ref in scope]
             narrowed = [ref for ref in candidates if ref in preferred_refs] or candidates
             return f"{{{{{narrowed[0]}}}}}" if len(narrowed) == 1 else figure
 
@@ -90,6 +98,10 @@ class EvidenceIndex:
         return "".join(
             f"{{{{{part}}}}}" if i % 2 else BARE_FIGURE.sub(replace, part) for i, part in enumerate(parts)
         )
+
+    def refs_in(self, text: str) -> set[str]:
+        """The references that appear in ``text`` (a prompt), whether as ``[ref]`` or ``{{ref}}``."""
+        return {ref for ref in self.items if ref in text}
 
     def describe(self, ref: str) -> str:
         item = self.items[ref]

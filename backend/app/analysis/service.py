@@ -199,7 +199,14 @@ def _agent_findings(
                     index.render(t) for t in draft.benign_explanations_considered
                 ],
                 questions_for_management=[index.render(t) for t in draft.questions_for_management],
-                critique=Critique(decision=verdict.decision, reasons=verdict.reasons) if verdict else None,
+                critique=(
+                    Critique(decision=verdict.decision, reasons=verdict.reasons)
+                    if verdict
+                    else Critique(
+                        decision="unreviewed",
+                        reasons="The review step did not complete, so no critic checked this finding.",
+                    )
+                ),
             )
         )
     return findings

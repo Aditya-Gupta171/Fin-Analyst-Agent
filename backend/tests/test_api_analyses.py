@@ -188,3 +188,8 @@ def test_a_job_that_fails_before_the_engine_runs_is_marked_failed(
     analysis = asyncio.run(_run())
     assert analysis.status == "failed"
     assert "no-such-document" in analysis.error_message
+
+
+def test_findings_of_an_unknown_analysis_is_404(database_url: str, catalog: Catalog) -> None:
+    with TestClient(_app(database_url, catalog)) as client:
+        assert client.get("/analyses/does-not-exist/findings").status_code == 404

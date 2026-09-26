@@ -30,6 +30,8 @@ class Settings(BaseSettings):
     database_url: str = f"sqlite+aiosqlite:///{REPO_ROOT / 'data' / 'app.db'}"
     cors_origins: list[str] = ["*"]
     api_key: SecretStr | None = None  # when set, POST/DELETE endpoints require `Authorization: Bearer <key>`
+    # Large enough for a 600-page DRHP; anything bigger is refused before it is read into memory.
+    max_upload_mb: int = 100
     max_concurrent_analyses: int = 2
     # Where an approved candidate rule is written (app/engine/promotion.py). A parameter, not a bare
     # import of RULES_DIR, purely so tests can redirect it at a throwaway copy of the rules tree.

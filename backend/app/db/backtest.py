@@ -10,6 +10,7 @@ from __future__ import annotations
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import defer
 
 from app.agent.graph import rule_problems
 from app.agent.schemas import RuleProposal
@@ -41,7 +42,7 @@ async def backtest_candidate(session: AsyncSession, definition: dict, catalog: C
         return BacktestResult(documents_evaluated=0, fired=[], insufficient_data_count=0, errors=problems)
 
     rule = RuleDef.model_validate(definition)
-    documents = (await session.scalars(select(Document))).all()
+    documents = (await session.scalars(select(Document).options(defer(Document.file_bytes)))).all()
     fired: list[BacktestHit] = []
     errors: list[str] = []
     insufficient = 0

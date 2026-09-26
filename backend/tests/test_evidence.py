@@ -159,6 +159,31 @@ def test_link_figures_prefers_a_reference_from_the_preferred_set_when_ambiguous(
     assert linked == "Growth of {{m:b@FY25}} was seen."
 
 
+def test_link_figures_never_links_to_a_reference_outside_the_shown_scope() -> None:
+    # the model only saw m:a; an equal value elsewhere in the filing must not become its citation
+    index = idx(
+        **{
+            "m:a@FY25": ("A", Unit.RATIO, "12.0%"),
+            "m:unrelated@FY25": ("Unrelated", Unit.RATIO, "55.0%"),
+        }
+    )
+    linked = index.link_figures("Growth of 55.0% was seen.", set(), scope={"m:a@FY25"})
+    assert linked == "Growth of 55.0% was seen."
+    assert check_prose(linked, index, set(), "analysis")  # left for the guardrail to reject
+
+
+def test_link_figures_links_within_the_shown_scope() -> None:
+    index = idx(**{"m:a@FY25": ("A", Unit.RATIO, "55.0%"), "m:b@FY25": ("B", Unit.RATIO, "55.0%")})
+    linked = index.link_figures("Growth of 55.0% was seen.", set(), scope={"m:b@FY25"})
+    assert linked == "Growth of {{m:b@FY25}} was seen."
+
+
+def test_refs_in_finds_both_bracket_and_brace_references() -> None:
+    index = idx(**{"m:a@FY25": ("A", Unit.RATIO, "1.0%"), "m:b@FY25": ("B", Unit.RATIO, "2.0%")})
+    assert index.refs_in("[m:a@FY25] A = 1.0%") == {"m:a@FY25"}
+    assert index.refs_in("rose to {{m:b@FY25}}") == {"m:b@FY25"}
+
+
 def test_link_figures_does_not_touch_figures_in_the_skip_set() -> None:
     index = idx(**{"m:dso@FY25": ("DSO", Unit.DAYS, "98 days")})
     linked = index.link_figures("The regulatory cap is 25%.", {"25%"})

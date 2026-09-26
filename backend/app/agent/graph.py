@@ -11,7 +11,7 @@ deterministic result if the model call fails, so an analysis always completes.
 from __future__ import annotations
 
 from collections import defaultdict
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass, field
 from typing import TypedDict
 
@@ -63,6 +63,7 @@ class AgentState(TypedDict, total=False):
     materials: dict[str, str]
     dismissed: list[ImmaterialRule]
     verdicts: dict[str, Verdict]
+    revised: list[str]
     summary: Summary | None
     proposals: list[RuleProposal]
     notes: list[str]
@@ -94,9 +95,10 @@ class AgentContext:
     def header(self) -> str:
         return self.fact_sheet.split("\n\n", 1)[0]
 
-    def link(self, text: str) -> str:
-        """Turn figures copied from the evidence into their references (see EvidenceIndex.link_figures)."""
-        return self.index.link_figures(text, self.allowed_figures)
+    def link(self, text: str, shown: set[str], preferred: Iterable[str] = ()) -> str:
+        """Turn figures copied from the evidence into their references (see EvidenceIndex.link_figures),
+        considering only the references in ``shown`` — those in the prompt the model answered."""
+        return self.index.link_figures(text, self.allowed_figures, preferred=preferred, scope=shown)
 
 
 def run_agent(context: AgentContext) -> AgentState:
@@ -105,6 +107,7 @@ def run_agent(context: AgentContext) -> AgentState:
     graph.add_node("investigate", lambda state: _investigate(context, state))
     graph.add_node("review", lambda state: _review(context, state))
     graph.add_node("revise", lambda state: _revise(context, state))
+    graph.add_node("recheck", lambda state: _recheck(context, state))
     graph.add_node("compose", lambda state: _compose(context, state))
     graph.add_node("propose", lambda state: _propose(context, state))
     graph.add_edge(START, "plan")
@@ -116,7 +119,8 @@ def run_agent(context: AgentContext) -> AgentState:
             "revise" if any(v.decision == "revise" for v in state.get("verdicts", {}).values()) else "compose"
         ),
     )
-    graph.add_edge("revise", "compose")
+    graph.add_edge("revise", "recheck")
+    graph.add_edge("recheck", "compose")
     graph.add_edge("compose", "propose")
     graph.add_edge("propose", END)
     return graph.compile().invoke({"notes": [], "dismissed": []})
@@ -130,10 +134,12 @@ def _plan(context: AgentContext, state: AgentState) -> AgentState:
     if not context.result.fired_rules and not context.result.anomalies:
         return {"plan": Plan(company_context="", enquiries=[], immaterial_rules=[])}
 
+    shown = context.index.refs_in(context.fact_sheet)
+
     def validate(plan: Plan) -> list[str]:
         problems = []
         for enquiry in plan.enquiries:
-            enquiry.why_it_matters = context.link(enquiry.why_it_matters)
+            enquiry.why_it_matters = context.link(enquiry.why_it_matters, shown, enquiry.evidence_refs)
             problems += [
                 f"{enquiry.id}: rule {r} did not fire" for r in enquiry.rule_ids if r not in context.fired_ids
             ]
@@ -243,11 +249,14 @@ def _key_metrics(fact_sheet: str) -> str:
     return fact_sheet[start : end if end > 0 else None]
 
 
-def _finding_problems(context: AgentContext, finding: FindingDraft) -> list[str]:
-    finding.summary = context.link(finding.summary)
-    finding.analysis = context.link(finding.analysis)
-    finding.benign_explanations_considered = [context.link(t) for t in finding.benign_explanations_considered]
-    finding.questions_for_management = [context.link(t) for t in finding.questions_for_management]
+def _finding_problems(context: AgentContext, finding: FindingDraft, shown: set[str]) -> list[str]:
+    def link(text: str) -> str:
+        return context.link(text, shown, finding.evidence_refs)
+
+    finding.summary = link(finding.summary)
+    finding.analysis = link(finding.analysis)
+    finding.benign_explanations_considered = [link(t) for t in finding.benign_explanations_considered]
+    finding.questions_for_management = [link(t) for t in finding.questions_for_management]
     problems = []
     for name in ("summary", "analysis"):
         problems += check_prose(getattr(finding, name), context.index, context.allowed_figures, name)
@@ -268,6 +277,8 @@ def _finding_problems(context: AgentContext, finding: FindingDraft) -> list[str]
 
 
 def _analyst_call(context: AgentContext, node: str, user: str, *, allow_requests: bool) -> AnalystTurn:
+    shown = context.index.refs_in(user)
+
     def validate(turn: AnalystTurn) -> list[str]:
         if turn.action == "request_context":
             if not allow_requests:
@@ -275,11 +286,11 @@ def _analyst_call(context: AgentContext, node: str, user: str, *, allow_requests
             return [] if turn.requests else ["request_context needs at least one request"]
         if turn.action == "submit_finding":
             return (
-                _finding_problems(context, turn.finding)
+                _finding_problems(context, turn.finding, shown)
                 if turn.finding
                 else ["submit_finding needs a finding"]
             )
-        turn.reason = context.link(turn.reason)
+        turn.reason = context.link(turn.reason, shown)
         return check_prose(turn.reason, context.index, context.allowed_figures, "reason")
 
     return context.gateway.generate(
@@ -330,6 +341,33 @@ def _review(context: AgentContext, state: AgentState) -> AgentState:
     if not drafts:
         return {"verdicts": {}}
     context.progress("review", f"Reviewing {len(drafts)} findings")
+    try:
+        review = _critic_call(context, "review", drafts, final=False)
+    except LLMError as exc:
+        return {"verdicts": {}, "notes": [*state["notes"], f"review skipped: {exc}"]}
+    return {"verdicts": {verdict.finding_id: verdict for verdict in review.verdicts}}
+
+
+def _recheck(context: AgentContext, state: AgentState) -> AgentState:
+    """A final accept/reject pass over findings the analyst revised, so no revision reaches the report
+    without the critic having seen it. No second revision round: a revise verdict is not allowed here."""
+    revised = {i: d for i, d in state.get("drafts", {}).items() if i in state.get("revised", [])}
+    if not revised:
+        return {}
+    context.progress("review", f"Re-checking {len(revised)} revised findings")
+    verdicts = dict(state["verdicts"])
+    try:
+        review = _critic_call(context, "recheck", revised, final=True)
+    except LLMError as exc:
+        # the earlier "revise" verdict no longer describes the draft; leave it unreviewed rather than stale
+        for finding_id in revised:
+            verdicts.pop(finding_id, None)
+        return {"verdicts": verdicts, "notes": [*state["notes"], f"re-check of revisions skipped: {exc}"]}
+    verdicts.update({verdict.finding_id: verdict for verdict in review.verdicts})
+    return {"verdicts": verdicts}
+
+
+def _critic_call(context: AgentContext, node: str, drafts: dict[str, FindingDraft], *, final: bool) -> Review:
     blocks = []
     for finding_id, draft in drafts.items():
         evidence = "\n".join(context.index.describe(r) for r in draft.evidence_refs if r in context.index)
@@ -340,37 +378,49 @@ def _review(context: AgentContext, state: AgentState) -> AgentState:
             f"evidence:\n{evidence}"
         )
     user = f"{context.header()}\n\n" + "\n\n".join(blocks)
+    if final:
+        user += (
+            "\n\nThese findings were revised following your earlier review. This is the final check:"
+            " accept or reject each one; revise is not available."
+        )
+
+    shown = context.index.refs_in(user)
 
     def validate(review: Review) -> list[str]:
         ids = {v.finding_id for v in review.verdicts}
         problems = [f"missing verdict for {finding_id}" for finding_id in drafts if finding_id not in ids]
         problems += [f"unknown finding {v.finding_id}" for v in review.verdicts if v.finding_id not in drafts]
+        if final:
+            problems += [
+                f"{v.finding_id}: decision must be accept or reject in the final check"
+                for v in review.verdicts
+                if v.decision == "revise"
+            ]
         for verdict in review.verdicts:
-            verdict.reasons = context.link(verdict.reasons)
+            verdict.reasons = context.link(verdict.reasons, shown)
             problems += check_prose(
                 verdict.reasons, context.index, context.allowed_figures, f"{verdict.finding_id} reasons"
             )
         return problems
 
-    try:
-        review = context.gateway.generate(
-            Review,
-            node="review",
-            tier="reasoning",
-            system=prompts.CRITIC,
-            user=user,
-            max_completion_tokens=1200 + 500 * len(drafts),  # reasoning tokens count against the cap
-            effort="medium",
-            validate=validate,
-        )
-    except LLMError as exc:
-        return {"verdicts": {}, "notes": [*state["notes"], f"review skipped: {exc}"]}
-    return {"verdicts": {verdict.finding_id: verdict for verdict in review.verdicts}}
+    return context.gateway.generate(
+        Review,
+        node=node,
+        tier="reasoning",
+        system=prompts.CRITIC,
+        user=user,
+        max_completion_tokens=1200 + 500 * len(drafts),  # reasoning tokens count against the cap
+        effort="medium",
+        validate=validate,
+    )
 
 
 def _revise(context: AgentContext, state: AgentState) -> AgentState:
     drafts = dict(state["drafts"])
     notes = list(state["notes"])
+    dismissed = list(state.get("dismissed", []))
+    enquiries = {enquiry.id: enquiry for enquiry in state["plan"].enquiries} if "plan" in state else {}
+    revised: list[str] = []
     for finding_id, verdict in state["verdicts"].items():
         if verdict.decision != "revise" or finding_id not in drafts:
             continue
@@ -387,7 +437,17 @@ def _revise(context: AgentContext, state: AgentState) -> AgentState:
             continue
         if turn.action == "submit_finding" and turn.finding is not None:
             drafts[finding_id] = turn.finding
-    return {"drafts": drafts, "notes": notes}
+            revised.append(finding_id)
+        else:
+            # the analyst withdrew the finding on reflection; treat it like a no_finding investigation
+            del drafts[finding_id]
+            enquiry = enquiries.get(finding_id)
+            dismissed += [
+                ImmaterialRule(rule_id=rule_id, reason=turn.reason)
+                for rule_id in (enquiry.rule_ids if enquiry else [])
+            ]
+            notes.append(f"{finding_id} withdrawn on revision: {turn.reason}")
+    return {"drafts": drafts, "notes": notes, "dismissed": dismissed, "revised": revised}
 
 
 # ── compose and propose ───────────────────────────────────────────────────────────────────────────────────
@@ -420,10 +480,12 @@ def _compose(context: AgentContext, state: AgentState) -> AgentState:
         if part
     )
 
+    shown = context.index.refs_in(user)
+
     def validate(summary: Summary) -> list[str]:
-        summary.executive_summary = context.link(summary.executive_summary)
-        summary.strengths = [context.link(text) for text in summary.strengths]
-        summary.concerns = [context.link(text) for text in summary.concerns]
+        summary.executive_summary = context.link(summary.executive_summary, shown)
+        summary.strengths = [context.link(text, shown) for text in summary.strengths]
+        summary.concerns = [context.link(text, shown) for text in summary.concerns]
         problems = check_prose(summary.headline, context.index, set(), "headline")
         problems += check_prose(
             summary.executive_summary, context.index, context.allowed_figures, "executive_summary"

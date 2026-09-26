@@ -46,7 +46,7 @@ cd fin-analyst-agent
 cd backend
 python -m venv .venv
 .venv/Scripts/python -m pip install -e ".[dev,embeddings]"   # macOS / Linux: .venv/bin/python
-.venv/Scripts/python -m pytest                               # 336 tests, offline — see Testing
+.venv/Scripts/python -m pytest                               # 347 tests, offline — see Testing
 
 echo "GROQ_API_KEY=gsk_..." > ../.env                        # repo root, not backend/ — never commit it
 
@@ -81,7 +81,8 @@ Settings are read from environment variables, or a `.env` file at the **reposito
 | `GROQ_API_KEY` | unset | Enables the agent. Without it, analyses still complete, rules-only (no LLM). |
 | `DATABASE_URL` | local SQLite file (`data/app.db`) | Postgres connection string for production; see below to point it at Supabase. |
 | `CORS_ORIGINS` | `*` | Comma-free list (JSON array) of allowed frontend origins; tighten this once you have a deployed frontend URL. |
-| `API_KEY` | unset | When set, `POST`/mutating endpoints require `Authorization: Bearer <key>`. Left unset on the live deployment by design — see [Deploying](#deploying). |
+| `API_KEY` | unset | When set, `POST`/mutating endpoints require `Authorization: Bearer <key>`; reads stay open so the browser's live-progress stream and PDF viewer (which can't send headers) keep working. Left unset on the live deployment by design — see [Deploying](#deploying). |
+| `MAX_UPLOAD_MB` | `100` | Largest filing `POST /documents` accepts (a 600-page DRHP fits); bigger uploads get `413`. |
 | `MAX_CONCURRENT_ANALYSES` | `2` | How many analyses the in-process job queue runs at once. |
 | `NEXT_PUBLIC_API_BASE_URL` (frontend, `.env.local` in `frontend/`) | `http://localhost:8000` | Where the frontend looks for the backend. |
 
@@ -96,7 +97,8 @@ Settings are read from environment variables, or a `.env` file at the **reposito
    DATABASE_URL=postgresql://postgres.<project-ref>:<password>@aws-0-<region>.pooler.supabase.com:6543/postgres
    ```
    (`app/settings.py` upgrades it to `postgresql+asyncpg://` automatically.)
-3. Apply the schema: `.venv/Scripts/python -m alembic upgrade head`.
+3. Apply the schema: `.venv/Scripts/python -m alembic upgrade head`. On Postgres the app never creates tables
+   itself (only SQLite gets that zero-setup shortcut), so the schema always matches the migrations.
 
 The app reads `DATABASE_URL` on startup and works identically either way — switching databases is just that
 one environment variable plus running the migration. Because the pooler runs in transaction mode, the engine
@@ -153,9 +155,12 @@ The graph itself, per filing:
    excerpts. The model can request up to three tool lookups first (`metric_history`, `knowledge_search`,
    `rule_detail` — read-only, deterministic) before answering, or return `no_finding` with a reason.
 3. **Review** — a single call critiques every draft finding at once: `accept`, `revise` (with concrete
-   instructions), or `reject`, and sets the final severity.
+   instructions), or `reject`, and sets the final severity. The planner may not dismiss a high/critical or
+   integrity rule as immaterial, and if the review call fails the findings are marked *unreviewed* in the report
+   rather than silently passed.
 4. **Revise** — findings sent back for revision get one more analyst turn with the reviewer's instructions
-   attached.
+   attached, then a final **re-check** by the critic (accept or reject only). An analyst who withdraws a finding
+   on reflection has it dropped, with its rules recorded as dismissed.
 5. **Compose** — the accepted, reviewed findings become a headline, an overall risk level, and executive
    strengths/concerns.
 6. **Propose** — findings with no matching rule and unexplained anomalies are turned into at most two candidate
@@ -410,7 +415,7 @@ render.yaml          optional Render Blueprint (same setup, pre-filled)
 
 ```bash
 cd backend
-.venv/Scripts/python -m pytest        # 336 tests
+.venv/Scripts/python -m pytest        # 347 tests
 .venv/Scripts/ruff check app tests
 ```
 

@@ -294,9 +294,8 @@ def test_run_agent_falls_back_to_deterministic_plan_when_the_planner_fails(
     assert covered == {r.rule_id for r in result.fired_rules}
 
 
-def test_run_agent_revises_a_finding_the_critic_sends_back(
-    result: EngineResult, catalog: Catalog, index: EvidenceIndex
-) -> None:
+def _revise_script(result: EngineResult, *, revise_turn=None, recheck=None) -> dict:
+    """A run where the critic sends E1 back for revision; ``revise_turn``/``recheck`` vary what follows."""
     rule = result.fired_rules[0]
     supporting_ref = next(e.ref for e in rule.latest.evidence if e.value is not None)
     weak_finding = FindingDraft(
@@ -327,40 +326,106 @@ def test_run_agent_revises_a_finding_the_critic_sends_back(
         ],
         immaterial_rules=[],
     )
-    gateway = FakeGateway(
-        script={
-            "plan": [plan],
-            "investigate:E1": [
-                AnalystTurn(action="submit_finding", reason="submitting", requests=[], finding=weak_finding)
-            ],
-            "review": [
-                Review(
-                    verdicts=[
-                        Verdict(
-                            finding_id="E1",
-                            decision="revise",
-                            severity="high",
-                            reasons="Too vague; be specific.",
-                            revision_instructions="Add detail.",
-                        )
-                    ]
-                )
-            ],
-            "revise:E1": [
-                AnalystTurn(action="submit_finding", reason="revised", requests=[], finding=fixed_finding)
-            ],
-            "compose": [
-                Summary(
-                    headline="h", overall_risk="moderate", executive_summary="e", strengths=[], concerns=[]
-                )
-            ],
-            "propose": [Proposals(rules=[])],
-        }
+    script = {
+        "plan": [plan],
+        "investigate:E1": [
+            AnalystTurn(action="submit_finding", reason="submitting", requests=[], finding=weak_finding)
+        ],
+        "review": [
+            Review(
+                verdicts=[
+                    Verdict(
+                        finding_id="E1",
+                        decision="revise",
+                        severity="high",
+                        reasons="Too vague; be specific.",
+                        revision_instructions="Add detail.",
+                    )
+                ]
+            )
+        ],
+        "revise:E1": [
+            revise_turn
+            or AnalystTurn(action="submit_finding", reason="revised", requests=[], finding=fixed_finding)
+        ],
+        "compose": [
+            Summary(headline="h", overall_risk="moderate", executive_summary="e", strengths=[], concerns=[])
+        ],
+        "propose": [Proposals(rules=[])],
+    }
+    if recheck is not None:
+        script["recheck"] = recheck
+    return script
+
+
+def _accept(finding_id: str) -> Review:
+    return Review(
+        verdicts=[
+            Verdict(
+                finding_id=finding_id,
+                decision="accept",
+                severity="high",
+                reasons="Now specific.",
+                revision_instructions=None,
+            )
+        ]
     )
-    context = AgentContext(result, catalog, index, kb=None, gateway=gateway)
-    state = run_agent(context)
+
+
+def test_run_agent_revises_a_finding_the_critic_sends_back(
+    result: EngineResult, catalog: Catalog, index: EvidenceIndex
+) -> None:
+    gateway = FakeGateway(script=_revise_script(result, recheck=[_accept("E1")]))
+    state = run_agent(AgentContext(result, catalog, index, kb=None, gateway=gateway))
 
     assert state["drafts"]["E1"].summary == "Specific and supported."
+    # the revision was re-checked by the critic, so its verdict is the final one, not the stale "revise"
+    assert state["verdicts"]["E1"].decision == "accept"
+    assert any(call.node == "recheck" for call in gateway.calls)
+
+
+def test_the_final_check_cannot_send_a_finding_back_again(
+    result: EngineResult, catalog: Catalog, index: EvidenceIndex
+) -> None:
+    revise_again = Review(
+        verdicts=[
+            Verdict(
+                finding_id="E1",
+                decision="revise",
+                severity="high",
+                reasons="Still vague.",
+                revision_instructions="More.",
+            )
+        ]
+    )
+    gateway = FakeGateway(script=_revise_script(result, recheck=[revise_again, _accept("E1")]))
+    state = run_agent(AgentContext(result, catalog, index, kb=None, gateway=gateway))
+
+    assert state["verdicts"]["E1"].decision == "accept"
+
+
+def test_a_revision_the_critic_could_not_recheck_is_left_unreviewed(
+    result: EngineResult, catalog: Catalog, index: EvidenceIndex
+) -> None:
+    gateway = FakeGateway(script=_revise_script(result, recheck=[LLMError("provider down")]))
+    state = run_agent(AgentContext(result, catalog, index, kb=None, gateway=gateway))
+
+    assert "E1" in accepted(state)
+    assert "E1" not in state["verdicts"]
+    assert any("re-check of revisions skipped" in note for note in state["notes"])
+
+
+def test_a_finding_withdrawn_on_revision_is_dropped_and_its_rules_dismissed(
+    result: EngineResult, catalog: Catalog, index: EvidenceIndex
+) -> None:
+    withdraw = AnalystTurn(
+        action="no_finding", reason="On reflection the data does not support it.", requests=[], finding=None
+    )
+    gateway = FakeGateway(script=_revise_script(result, revise_turn=withdraw))
+    state = run_agent(AgentContext(result, catalog, index, kb=None, gateway=gateway))
+
+    assert "E1" not in accepted(state)
+    assert result.fired_rules[0].rule_id in {d.rule_id for d in state["dismissed"]}
 
 
 def test_analyst_can_request_context_before_answering(
@@ -433,3 +498,17 @@ def test_the_planner_cannot_dismiss_a_high_severity_rule(result, catalog, index)
     # the only scripted plan is rejected, so the planner falls back to grouping every fired rule
     assert "planner fell back" in state["notes"][0]
     assert serious.rule_id in {r for e in state["plan"].enquiries for r in e.rule_ids}
+
+
+def test_a_report_marks_findings_unreviewed_when_the_critic_fails(
+    result: EngineResult, catalog: Catalog
+) -> None:
+    from app.analysis.service import build_report
+
+    script = _revise_script(result)
+    script["review"] = [LLMError("provider down")]
+    report = build_report(result, catalog, kb=None, gateway=FakeGateway(script=script))
+
+    agent_findings = [f for f in report.findings if f.origin == "agent"]
+    assert agent_findings
+    assert all(f.critique is not None and f.critique.decision == "unreviewed" for f in agent_findings)

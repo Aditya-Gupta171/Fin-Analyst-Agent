@@ -35,7 +35,8 @@ class KnowledgeCitation(BaseModel):
 
 
 class Critique(BaseModel):
-    decision: Literal["accept", "revise", "reject"]
+    # "unreviewed": the critic step failed, so the finding reached the report without a second opinion
+    decision: Literal["accept", "revise", "reject", "unreviewed"]
     reasons: str
 
 
