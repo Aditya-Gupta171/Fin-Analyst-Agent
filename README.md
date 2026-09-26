@@ -100,6 +100,11 @@ Settings are read from environment variables, or a `.env` file at the **reposito
 3. Apply the schema: `.venv/Scripts/python -m alembic upgrade head`. On Postgres the app never creates tables
    itself (only SQLite gets that zero-setup shortcut), so the schema always matches the migrations.
 
+The migrations also enable row-level security on every table and revoke the `anon`/`authenticated` grants
+(`alembic/versions/5f3c9a1e7d24_lock_down_public_tables.py`). Supabase otherwise exposes `public` tables through its
+auto-generated REST API to anyone holding the project's publishable anon key; this app never uses that API — it
+connects to Postgres directly as the table owner, which RLS doesn't restrict — so locking it off costs nothing.
+
 The app reads `DATABASE_URL` on startup and works identically either way — switching databases is just that
 one environment variable plus running the migration. Because the pooler runs in transaction mode, the engine
 (`app/db/engine.py`) disables asyncpg's prepared-statement cache (`statement_cache_size=0`); without that,
